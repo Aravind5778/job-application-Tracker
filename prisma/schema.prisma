@@ -1,0 +1,123 @@
+// Prisma schema — Job Search Copilot
+//
+// SQLite is the only target. The DB file lives at ./data/app.db (gitignored)
+// so a checkout always starts from a clean state via `npm run db:reset`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7+ moved connection-URL config out of the schema. The URL lives in
+// prisma.config.ts (for the CLI/Migrate engine) and is passed to PrismaClient
+// via the better-sqlite3 driver adapter — see src/lib/db.ts.
+
+datasource db {
+  provider = "sqlite"
+}
+
+// --- Profile -----------------------------------------------------------------
+// Singleton (id = "singleton"). Stores the résumé text and a short background
+// note that the AI uses as context for every generated kit.
+
+model Profile {
+  id             String   @id @default("singleton")
+  fullName       String   @default("")
+  email          String   @default("")
+  resumeText     String   @default("")
+  backgroundNote String   @default("")
+  updatedAt      DateTime @updatedAt @default(now())
+}
+
+// --- Pipeline columns --------------------------------------------------------
+// User-customizable. `order` is a sparse-ish integer (10, 20, 30...) so that
+// insertions between existing columns don't always force a full renumber.
+
+model Column {
+  id         String   @id @default(cuid())
+  name       String
+  order      Int      @unique
+  isTerminal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  jobs Job[]
+
+  @@index([order])
+}
+
+// --- Jobs --------------------------------------------------------------------
+// `order` is per-column; combined index gives us fast intra-column ordering.
+
+model Job {
+  id          String   @id @default(cuid())
+  columnId    String
+  column      Column   @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  order       Int
+  company     String
+  role        String
+  location    String?
+  source      String   // 'url' | 'paste'
+  sourceUrl   String?
+  listingText String
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt @default(now())
+
+  kit Kit?
+
+  @@index([columnId, order])
+}
+
+// --- Generated kit -----------------------------------------------------------
+// One kit per job. KitSection rows hold the four artifacts; the original AI
+// output goes in `content`, user edits live in `editedContent` so we can revert.
+
+model Kit {
+  id            String   @id @default(cuid())
+  jobId         String   @unique
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  model         String
+  promptVersion String
+  generatedAt   DateTime @default(now())
+
+  sections KitSection[]
+}
+
+model KitSection {
+  id            String   @id @default(cuid())
+  kitId         String
+  kit           Kit      @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  kind          String   // 'cover_letter' | 'resume_bullets' | 'interview_questions' | 'company_brief'
+  content       String   // text (cover_letter) or JSON-encoded (bullets/questions/brief)
+  editedContent String?
+  updatedAt     DateTime @updatedAt @default(now())
+
+  @@unique([kitId, kind])
+}
+
+// --- Settings ----------------------------------------------------------------
+// Simple key-value store for things that don't deserve their own table:
+// API key, default model, etc.
+
+model Setting {
+  key   String @id
+  value String
+}
+
+// --- AI usage log ------------------------------------------------------------
+// Every model call gets logged here so the Settings page can show the user
+// what they're spending. `jobId` is nullable for operations not tied to a job.
+
+model AiLog {
+  id               String   @id @default(cuid())
+  createdAt        DateTime @default(now())
+  jobId            String?
+  model            String
+  operation        String   // 'kit' | 'kit_section' | 'meta_extract'
+  inputTokens      Int      @default(0)
+  outputTokens     Int      @default(0)
+  cacheReadTokens  Int      @default(0)
+  cacheWriteTokens Int      @default(0)
+  latencyMs        Int      @default(0)
+  estCostCents     Int      @default(0)
+  error            String?
+}
