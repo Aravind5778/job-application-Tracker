@@ -8,8 +8,10 @@ import {
   DialogHeader,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { KitPanel } from "./kit-panel";
 import type { ColumnDTO } from "@/lib/columns";
 import type { JobDetailDTO } from "@/lib/jobs";
+import type { SavedKitDTO } from "@/lib/kits";
 
 /**
  * Right-side drawer showing the full job: meta, listing text, notes,
@@ -21,12 +23,19 @@ import type { JobDetailDTO } from "@/lib/jobs";
  *
  * Notes are debounced-saved on blur to keep the UI calm.
  */
-export function JobDetailDrawer({ columns }: { columns: ColumnDTO[] }) {
+export function JobDetailDrawer({
+  columns,
+  profileReady,
+}: {
+  columns: ColumnDTO[];
+  profileReady: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const jobId = searchParams.get("job");
 
   const [job, setJob] = useState<JobDetailDTO | null>(null);
+  const [kit, setKit] = useState<SavedKitDTO | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [pending, startTransition] = useTransition();
@@ -39,16 +48,29 @@ export function JobDetailDrawer({ columns }: { columns: ColumnDTO[] }) {
     if (!jobId) return;
     let cancelled = false;
 
-    fetch(`/api/jobs/${encodeURIComponent(jobId)}`)
-      .then(async (res) => {
-        if (cancelled) return;
+    // Fetch job + kit in parallel — they're independent reads.
+    const jobReq = fetch(`/api/jobs/${encodeURIComponent(jobId)}`).then(
+      async (res) => {
         if (!res.ok) {
           throw new Error(
             res.status === 404 ? "Job not found." : `Failed (${res.status}).`,
           );
         }
-        const { job: fetched } = (await res.json()) as { job: JobDetailDTO };
+        return (await res.json()) as { job: JobDetailDTO };
+      },
+    );
+    const kitReq = fetch(`/api/jobs/${encodeURIComponent(jobId)}/kit`).then(
+      async (res) => {
+        if (!res.ok) return { kit: null };
+        return (await res.json()) as { kit: SavedKitDTO | null };
+      },
+    );
+
+    Promise.all([jobReq, kitReq])
+      .then(([{ job: fetched }, { kit: fetchedKit }]) => {
+        if (cancelled) return;
         setJob(fetched);
+        setKit(fetchedKit);
         setNotes(fetched.notes ?? "");
         setLoadError(null);
       })
@@ -221,11 +243,12 @@ export function JobDetailDrawer({ columns }: { columns: ColumnDTO[] }) {
                 <h3 className="text-eyebrow text-ink-subtle uppercase mb-2">
                   Application kit
                 </h3>
-                <div className="rounded-lg border border-dashed border-hairline p-4 text-center">
-                  <p className="text-body-sm text-ink-tertiary">
-                    Generate Kit lands in Phase 7.
-                  </p>
-                </div>
+                <KitPanel
+                  key={job.id}
+                  jobId={job.id}
+                  initialKit={kit}
+                  profileReady={profileReady}
+                />
               </section>
             </>
           )}
