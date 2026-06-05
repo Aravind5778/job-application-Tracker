@@ -1,0 +1,242 @@
+@import "tailwindcss";
+
+/* ============================================================================
+ * Linear dark-canvas design system — tokens from design.md
+ * ========================================================================== */
+
+:root,
+[data-theme="dark"] {
+  /* Surfaces */
+  --color-canvas: #010102;
+  --color-surface-1: #0c0d10;
+  --color-surface-2: #14161a;
+  --color-surface-3: #1b1d22;
+  --color-surface-4: #23262c;
+
+  /* Hairlines */
+  --color-hairline: #23252a;
+  --color-hairline-strong: #2f3137;
+  --color-hairline-tertiary: #181a1e;
+
+  /* Ink (text) */
+  --color-ink: #f7f8f8;
+  --color-ink-muted: #d0d6e0;
+  --color-ink-subtle: #8a8f98;
+  --color-ink-tertiary: #62666d;
+
+  /* Brand */
+  --color-primary: #5e6ad2;
+  --color-primary-hover: #828fff;
+  --color-primary-focus: #5e69d1;
+  --color-on-primary: #ffffff;
+  --color-brand-secure: #7a7fad;
+
+  /* Semantic */
+  --color-success: #27a644;
+  --color-overlay: rgba(0, 0, 0, 0.6);
+
+  /* Inverse (used for the rare white-pill CTA) */
+  --color-inverse-canvas: #ffffff;
+  --color-inverse-ink: #0d0f12;
+}
+
+[data-theme="light"] {
+  --color-canvas: #ffffff;
+  --color-surface-1: #f7f8f8;
+  --color-surface-2: #eef0f3;
+  --color-surface-3: #e3e6ec;
+  --color-surface-4: #d6dae1;
+
+  --color-hairline: #e6e8ec;
+  --color-hairline-strong: #c9ccd3;
+  --color-hairline-tertiary: #f0f1f4;
+
+  --color-ink: #0d0f12;
+  --color-ink-muted: #3b3f47;
+  --color-ink-subtle: #6b7079;
+  --color-ink-tertiary: #9aa0a8;
+
+  --color-primary: #5e6ad2;
+  --color-primary-hover: #4f5ac3;
+  --color-primary-focus: #5e69d1;
+  --color-on-primary: #ffffff;
+  --color-brand-secure: #7a7fad;
+
+  --color-success: #27a644;
+  --color-overlay: rgba(0, 0, 0, 0.4);
+
+  --color-inverse-canvas: #0d0f12;
+  --color-inverse-ink: #ffffff;
+}
+
+/* ============================================================================
+ * Theme registration — exposes tokens to Tailwind utility generation.
+ *
+ * NB: keep these names singular ("color-ink", "text-body") so generated classes
+ * read naturally (text-ink, bg-canvas, border-hairline, text-body, rounded-lg).
+ * ========================================================================== */
+
+@theme inline {
+  /* Colors */
+  --color-canvas: var(--color-canvas);
+  --color-surface-1: var(--color-surface-1);
+  --color-surface-2: var(--color-surface-2);
+  --color-surface-3: var(--color-surface-3);
+  --color-surface-4: var(--color-surface-4);
+  --color-hairline: var(--color-hairline);
+  --color-hairline-strong: var(--color-hairline-strong);
+  --color-hairline-tertiary: var(--color-hairline-tertiary);
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-ink-subtle: var(--color-ink-subtle);
+  --color-ink-tertiary: var(--color-ink-tertiary);
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-primary-focus: var(--color-primary-focus);
+  --color-on-primary: var(--color-on-primary);
+  --color-brand-secure: var(--color-brand-secure);
+  --color-success: var(--color-success);
+  --color-overlay: var(--color-overlay);
+  --color-inverse-canvas: var(--color-inverse-canvas);
+  --color-inverse-ink: var(--color-inverse-ink);
+
+  /* Fonts — wired through next/font in layout.tsx */
+  --font-sans: var(--font-sans), "SF Pro Display", -apple-system, system-ui,
+    "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Type scale (per design.md) */
+  --text-display-xl: 80px;
+  --text-display-xl--line-height: 1.05;
+  --text-display-xl--letter-spacing: -3px;
+  --text-display-xl--font-weight: 600;
+
+  --text-display-lg: 56px;
+  --text-display-lg--line-height: 1.1;
+  --text-display-lg--letter-spacing: -1.8px;
+  --text-display-lg--font-weight: 600;
+
+  --text-display-md: 40px;
+  --text-display-md--line-height: 1.15;
+  --text-display-md--letter-spacing: -1px;
+  --text-display-md--font-weight: 600;
+
+  --text-headline: 28px;
+  --text-headline--line-height: 1.2;
+  --text-headline--letter-spacing: -0.6px;
+  --text-headline--font-weight: 600;
+
+  --text-card-title: 22px;
+  --text-card-title--line-height: 1.25;
+  --text-card-title--letter-spacing: -0.4px;
+  --text-card-title--font-weight: 500;
+
+  --text-subhead: 20px;
+  --text-subhead--line-height: 1.4;
+  --text-subhead--letter-spacing: -0.2px;
+  --text-subhead--font-weight: 400;
+
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 1.5;
+  --text-body-lg--letter-spacing: -0.1px;
+  --text-body-lg--font-weight: 400;
+
+  --text-body: 16px;
+  --text-body--line-height: 1.5;
+  --text-body--letter-spacing: -0.05px;
+  --text-body--font-weight: 400;
+
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 1.5;
+  --text-body-sm--letter-spacing: 0px;
+  --text-body-sm--font-weight: 400;
+
+  --text-caption: 12px;
+  --text-caption--line-height: 1.4;
+  --text-caption--letter-spacing: 0px;
+  --text-caption--font-weight: 400;
+
+  --text-button: 14px;
+  --text-button--line-height: 1.2;
+  --text-button--letter-spacing: 0px;
+  --text-button--font-weight: 500;
+
+  --text-eyebrow: 13px;
+  --text-eyebrow--line-height: 1.3;
+  --text-eyebrow--letter-spacing: 0.4px;
+  --text-eyebrow--font-weight: 500;
+
+  /* Radii */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 24px;
+
+  /* Spacing — semantic tokens above Tailwind's numeric defaults */
+  --spacing-xxs: 4px;
+  --spacing-xs: 8px;
+  --spacing-sm: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-xxl: 48px;
+  --spacing-section: 96px;
+}
+
+/* ============================================================================
+ * Base styles
+ * ========================================================================== */
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: -0.05px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-primary) 30%, transparent);
+  color: var(--color-ink);
+}
+
+/* Focus ring per Linear: 2px primary-focus at 50% opacity */
+:focus-visible {
+  outline: 2px solid
+    color-mix(in oklab, var(--color-primary-focus) 50%, transparent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Subtle scrollbar — keeps the dark chrome cohesive */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-hairline-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-hairline-strong);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
