@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import type {
   CompanyBrief,
   InterviewQuestion,
+  KitContent,
   KitSectionKind,
 } from "@/lib/ai/kit-tool";
-import type { SavedKitDTO, SavedKitSectionDTO } from "@/lib/kits";
+import type { KitStreamEvent, SavedKitDTO, SavedKitSectionDTO } from "@/lib/kits";
 
 /**
  * Kit panel shown inside the job-detail drawer.
@@ -43,52 +44,89 @@ export function KitPanel({
   // regenerate / edit) drive subsequent updates.
   const [kit, setKit] = useState<SavedKitDTO | null>(initialKit);
   const [active, setActive] = useState<KitSectionKind>("cover_letter");
-  const [pending, startTransition] = useTransition();
+  const [streaming, setStreaming] = useState(false);
+  const [partial, setPartial] = useState<Partial<KitContent> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const generate = useCallback(() => {
     setError(null);
-    startTransition(async () => {
+    setPartial(null);
+    setStreaming(true);
+
+    const controller = new AbortController();
+    abortRef.current?.abort();
+    abortRef.current = controller;
+
+    (async () => {
       try {
-        const res = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/kit`, {
-          method: "POST",
-        });
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
+        const res = await fetch(
+          `/api/jobs/${encodeURIComponent(jobId)}/kit/stream`,
+          { method: "POST", signal: controller.signal },
+        );
+        if (!res.ok || !res.body) {
+          const data = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
           throw new Error(data.error ?? `Generation failed (${res.status}).`);
         }
-        const { kit: generated } = (await res.json()) as { kit: SavedKitDTO };
-        setKit(generated);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+
+        // Read NDJSON: each line is one event.
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          let nl: number;
+          while ((nl = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            if (!line) continue;
+            let event: KitStreamEvent;
+            try {
+              event = JSON.parse(line) as KitStreamEvent;
+            } catch {
+              continue;
+            }
+            if (event.type === "partial") {
+              setPartial(event.partial);
+            } else if (event.type === "done") {
+              setKit(event.kit);
+              setPartial(null);
+              setStreaming(false);
+            } else if (event.type === "error") {
+              throw new Error(event.error);
+            }
+          }
+        }
       } catch (e) {
+        if ((e as Error).name === "AbortError") return;
         setError(e instanceof Error ? e.message : "Generation failed.");
+        setPartial(null);
+        setStreaming(false);
       }
-    });
+    })();
   }, [jobId]);
 
-  if (!kit) {
-    const disabled = !profileReady || pending;
+  // No kit AND not currently streaming → show the Generate CTA.
+  if (!kit && !streaming) {
+    const disabled = !profileReady;
     return (
       <div className="rounded-lg border border-dashed border-hairline p-6 text-center space-y-3">
         <p className="text-body-sm text-ink-muted">
-          {pending
-            ? "Generating… (≈10–30s on Opus)"
-            : "No kit yet. Generate one tailored to this listing."}
+          No kit yet. Generate one tailored to this listing.
         </p>
-        {error && (
-          <p className="text-body-sm text-ink">{error}</p>
-        )}
+        {error && <p className="text-body-sm text-ink">{error}</p>}
         <Button
           onClick={generate}
           disabled={disabled}
           title={
-            !profileReady
-              ? "Fill in your profile first (Profile page)"
-              : pending
-                ? "Generating…"
-                : undefined
+            !profileReady ? "Fill in your profile first (Profile page)" : undefined
           }
         >
-          {pending ? "Generating…" : "Generate kit"}
+          Generate kit
         </Button>
         {!profileReady && (
           <p className="text-caption text-ink-tertiary">
@@ -98,8 +136,6 @@ export function KitPanel({
       </div>
     );
   }
-
-  const section = kit.sections.find((s) => s.kind === active);
 
   return (
     <div className="space-y-3">
@@ -124,15 +160,21 @@ export function KitPanel({
         <Button
           variant="secondary"
           onClick={generate}
-          disabled={pending}
+          disabled={streaming}
           title="Regenerate the full kit"
         >
-          {pending ? "Regenerating…" : "Regenerate"}
+          {streaming ? "Streaming…" : "Regenerate"}
         </Button>
       </div>
 
-      <p className="text-caption text-ink-tertiary">
-        Generated {new Date(kit.generatedAt).toLocaleString()} · {kit.model}
+      <p className="text-caption text-ink-tertiary flex items-center gap-2">
+        {streaming ? (
+          <span className="text-[var(--color-primary)]">Generating…</span>
+        ) : kit ? (
+          <>
+            Generated {new Date(kit.generatedAt).toLocaleString()} · {kit.model}
+          </>
+        ) : null}
       </p>
 
       {error && (
@@ -142,10 +184,138 @@ export function KitPanel({
       )}
 
       <div className="rounded-lg border border-hairline bg-canvas p-4">
-        {section ? <SectionView section={section} /> : null}
+        <PartialOrSavedView
+          active={active}
+          kit={kit}
+          partial={partial}
+          streaming={streaming}
+        />
       </div>
     </div>
   );
+}
+
+// ----------------------------------------------------------------------------
+// Render either the saved section (preferred — it's persisted, validated, and
+// includes editedContent) or the in-flight partial (when streaming). During
+// stream, partial wins; once we get the `done` event we replace it with the
+// saved kit.
+
+function PartialOrSavedView({
+  active,
+  kit,
+  partial,
+  streaming,
+}: {
+  active: KitSectionKind;
+  kit: SavedKitDTO | null;
+  partial: Partial<KitContent> | null;
+  streaming: boolean;
+}) {
+  if (streaming && partial) {
+    const value = partial[active];
+    if (value === undefined) {
+      return (
+        <p className="text-body-sm text-ink-tertiary italic">
+          Waiting for this section…
+        </p>
+      );
+    }
+    return <PartialView kind={active} value={value} />;
+  }
+  if (!kit) return null;
+  const section = kit.sections.find((s) => s.kind === active);
+  return section ? <SectionView section={section} /> : null;
+}
+
+function PartialView({
+  kind,
+  value,
+}: {
+  kind: KitSectionKind;
+  value: unknown;
+}) {
+  // Partial-json may give us half-formed strings or arrays — render
+  // defensively rather than asserting on shape.
+  switch (kind) {
+    case "cover_letter":
+      return (
+        <pre className="whitespace-pre-wrap text-body-sm text-ink leading-relaxed font-sans">
+          {typeof value === "string" ? value : ""}
+        </pre>
+      );
+    case "resume_bullets":
+      return (
+        <ul className="list-disc pl-5 space-y-2 text-body-sm text-ink">
+          {Array.isArray(value)
+            ? (value as unknown[]).map((b, i) => (
+                <li key={i}>{typeof b === "string" ? b : ""}</li>
+              ))
+            : null}
+        </ul>
+      );
+    case "interview_questions":
+      return (
+        <ol className="list-decimal pl-5 space-y-4 text-body-sm text-ink">
+          {Array.isArray(value)
+            ? (value as Partial<InterviewQuestion>[]).map((q, i) => (
+                <li key={i} className="space-y-1">
+                  <p className="text-ink">{q?.question ?? ""}</p>
+                  {q?.why_it_matters && (
+                    <p className="text-ink-muted">
+                      <span className="text-caption text-ink-subtle uppercase tracking-wide mr-2">
+                        Why
+                      </span>
+                      {q.why_it_matters}
+                    </p>
+                  )}
+                  {q?.approach && (
+                    <p className="text-ink-muted">
+                      <span className="text-caption text-ink-subtle uppercase tracking-wide mr-2">
+                        Approach
+                      </span>
+                      {q.approach}
+                    </p>
+                  )}
+                </li>
+              ))
+            : null}
+        </ol>
+      );
+    case "company_brief": {
+      const cb = (value ?? {}) as Partial<CompanyBrief>;
+      return (
+        <div className="space-y-4 text-body-sm text-ink">
+          {cb.what_they_do && (
+            <BriefField label="What they do" value={cb.what_they_do} />
+          )}
+          {Array.isArray(cb.recent_signals) && cb.recent_signals.length > 0 && (
+            <BriefList
+              label="Recent signals"
+              items={cb.recent_signals as string[]}
+            />
+          )}
+          {Array.isArray(cb.tech_stack_guesses) &&
+            cb.tech_stack_guesses.length > 0 && (
+              <BriefList
+                label="Tech stack (guesses)"
+                items={cb.tech_stack_guesses as string[]}
+              />
+            )}
+          {cb.team_fit_angle && (
+            <BriefField label="Team fit angle" value={cb.team_fit_angle} />
+          )}
+          {Array.isArray(cb.questions_to_ask) &&
+            cb.questions_to_ask.length > 0 && (
+              <BriefList
+                label="Questions to ask them"
+                items={cb.questions_to_ask as string[]}
+              />
+            )}
+        </div>
+      );
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

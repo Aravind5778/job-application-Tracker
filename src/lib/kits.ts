@@ -12,6 +12,7 @@
  * On regenerate we leave any `editedContent` alone unless explicitly
  * requested — Phase 9 will surface per-section regenerate with that nuance.
  */
+import { parse as parsePartialJson, Allow } from "partial-json";
 import { prisma } from "./db";
 import { getAnthropicClient, MODELS } from "./ai/client";
 import {
@@ -220,6 +221,143 @@ export async function generateKit(jobId: string): Promise<SavedKitDTO> {
   });
 
   return persistKit(jobId, model, content);
+}
+
+// ---------------------------------------------------------------------------
+// Generate (streaming)
+//
+// Yields events as the model writes the kit tool's JSON input:
+//   { type: "partial", partial: Partial<KitContent> }   — many of these
+//   { type: "done", kit: SavedKitDTO }                 — once persisted
+//   { type: "error", error: string }                   — terminal failure
+//
+// The route handler turns this AsyncIterable into an NDJSON ReadableStream;
+// the client parses each line and progressively renders sections as they
+// fill in.
+
+export type KitStreamEvent =
+  | { type: "partial"; partial: Partial<KitContent> }
+  | { type: "done"; kit: SavedKitDTO }
+  | { type: "error"; error: string };
+
+export async function* generateKitStream(
+  jobId: string,
+): AsyncGenerator<KitStreamEvent, void, void> {
+  let job;
+  try {
+    job = await getJob(jobId);
+    if (!job) throw new KitInputError("Job not found.");
+    const profile = await getProfile();
+    if (isProfileEmpty(profile)) {
+      throw new KitInputError(
+        "Your profile is empty. Fill it in on /profile before generating a kit.",
+      );
+    }
+    const client = await getAnthropicClient();
+    if (!client) {
+      throw new KitInputError(
+        "No Anthropic API key configured. Set ANTHROPIC_API_KEY or paste a key into Settings.",
+      );
+    }
+
+    const listingText =
+      job.listingText.length > MAX_LISTING_CHARS
+        ? job.listingText.slice(0, MAX_LISTING_CHARS) + "\n\n[truncated]"
+        : job.listingText;
+
+    const model = MODELS.opus;
+    const t0 = Date.now();
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let cacheReadTokens = 0;
+    let cacheWriteTokens = 0;
+
+    const stream = client.messages.stream({
+      model,
+      max_tokens: 4000,
+      system: buildSystemBlocks(profile),
+      tools: [KIT_TOOL],
+      tool_choice: { type: "tool", name: KIT_TOOL_NAME },
+      messages: [
+        {
+          role: "user",
+          content: buildKitUserMessage({
+            company: job.company,
+            role: job.role,
+            location: job.location,
+            listingText,
+          }),
+        },
+      ],
+    });
+
+    // Accumulate the tool's `input` JSON as it streams in.
+    let jsonBuf = "";
+    // `partial-json` Allow.ALL lets us tolerate unterminated strings, arrays,
+    // and objects mid-stream — exactly what we want for progressive UI.
+
+    for await (const event of stream) {
+      if (event.type === "content_block_delta") {
+        const delta = event.delta;
+        if (delta.type === "input_json_delta") {
+          jsonBuf += delta.partial_json ?? "";
+          try {
+            const parsed = parsePartialJson(jsonBuf, Allow.ALL) as Partial<KitContent>;
+            yield { type: "partial", partial: parsed };
+          } catch {
+            // Mid-token; ignore and wait for the next delta.
+          }
+        }
+      } else if (event.type === "message_delta") {
+        // usage arrives on message_delta
+        const usage = event.usage as {
+          input_tokens?: number;
+          output_tokens?: number;
+          cache_read_input_tokens?: number;
+          cache_creation_input_tokens?: number;
+        } | undefined;
+        if (usage) {
+          inputTokens = usage.input_tokens ?? inputTokens;
+          outputTokens = usage.output_tokens ?? outputTokens;
+          cacheReadTokens = usage.cache_read_input_tokens ?? cacheReadTokens;
+          cacheWriteTokens =
+            usage.cache_creation_input_tokens ?? cacheWriteTokens;
+        }
+      }
+    }
+
+    const finalMessage = await stream.finalMessage();
+    let content: KitContent | null = null;
+    for (const block of finalMessage.content) {
+      if (block.type === "tool_use" && block.name === KIT_TOOL_NAME) {
+        content = validateKitContent(block.input);
+        break;
+      }
+    }
+    if (!content) {
+      throw new KitInputError(
+        "Model didn't call the emit_application_kit tool. Try again.",
+      );
+    }
+
+    await logKitCall({
+      jobId,
+      model,
+      operation: "kit",
+      latencyMs: Date.now() - t0,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      cacheWriteTokens,
+      error: null,
+    });
+
+    const saved = await persistKit(jobId, model, content);
+    yield { type: "done", kit: saved };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    yield { type: "error", error: msg };
+  }
 }
 
 async function persistKit(
