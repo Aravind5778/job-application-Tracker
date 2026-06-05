@@ -10,7 +10,7 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <TopNav />
+      <TopNav columns={columns} />
       <main className="flex-1">
         <div className="mx-auto w-full max-w-[820px] px-6 pt-12 pb-12">
           <p className="text-eyebrow text-ink-subtle uppercase">Settings</p>

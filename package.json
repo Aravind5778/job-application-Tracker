@@ -14,8 +14,12 @@
     "postinstall": "prisma generate --no-hints"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@prisma/adapter-better-sqlite3": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@radix-ui/react-dialog": "^1.1.15",
     "better-sqlite3": "^12.10.0",
     "dotenv": "^17.4.2",
     "next": "16.2.7",

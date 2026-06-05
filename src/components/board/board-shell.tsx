@@ -1,20 +1,24 @@
-import type { ReactNode } from "react";
 import Link from "next/link";
 import type { ColumnDTO } from "@/lib/columns";
+import type { JobListDTO } from "@/lib/jobs";
+import { BoardGrid } from "./board-grid";
 
 /**
- * Board shell — renders the columns from the DB with empty card slots.
- * Phase 4 will replace the placeholders with real cards + drag-and-drop.
+ * Server-rendered board chrome — the header copy + an empty-state. The
+ * actual interactive grid (DnD, optimistic state) lives in BoardGrid as a
+ * client island.
  *
- * Per design.md: columns are NOT lifted onto a surface. They live directly
- * on the canvas and are distinguished by their eyebrow header. Only cards
- * get surface-1 treatment.
- *
- * Terminal columns (the user's chosen "happy-path" close, e.g. Offer) get
- * a success-green eyebrow accent — the only chromatic exception per the
- * design system.
+ * Per design.md: the page background is canvas; columns are NOT lifted onto
+ * a surface — only the cards inside them. Terminal columns are the one
+ * chromatic exception (success-green eyebrow).
  */
-export function BoardShell({ columns }: { columns: ColumnDTO[] }) {
+export function BoardShell({
+  columns,
+  jobsByColumn,
+}: {
+  columns: ColumnDTO[];
+  jobsByColumn: Record<string, JobListDTO[]>;
+}) {
   return (
     <main className="flex-1 flex flex-col">
       <div className="mx-auto w-full max-w-[1280px] px-6 pt-12 pb-6">
@@ -30,55 +34,10 @@ export function BoardShell({ columns }: { columns: ColumnDTO[] }) {
         {columns.length === 0 ? (
           <EmptyState />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {columns.map((col) => (
-              <ColumnPlaceholder key={col.id} column={col} />
-            ))}
-          </div>
+          <BoardGrid columns={columns} jobsByColumn={jobsByColumn} />
         )}
       </div>
     </main>
-  );
-}
-
-function ColumnPlaceholder({ column }: { column: ColumnDTO }) {
-  return (
-    <section aria-label={column.name} className="flex flex-col gap-3 min-h-[320px]">
-      <header className="flex items-center justify-between">
-        <h2
-          className={
-            column.isTerminal
-              ? "text-eyebrow uppercase text-[var(--color-success)]"
-              : "text-eyebrow uppercase text-ink-subtle"
-          }
-        >
-          {column.name}
-        </h2>
-        <span className="text-caption text-ink-tertiary">0</span>
-      </header>
-
-      <EmptyDropZone>
-        <p className="text-body-sm text-ink-tertiary text-center leading-snug">
-          No jobs here yet.
-        </p>
-      </EmptyDropZone>
-    </section>
-  );
-}
-
-function EmptyDropZone({ children }: { children: ReactNode }) {
-  return (
-    <div
-      className="
-        flex-1 rounded-lg border border-dashed border-hairline
-        bg-transparent
-        flex items-center justify-center
-        px-4 py-8
-        min-h-[200px]
-      "
-    >
-      {children}
-    </div>
   );
 }
 
