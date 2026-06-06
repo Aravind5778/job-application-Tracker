@@ -10,6 +10,7 @@ import type {
   KitSectionKind,
 } from "@/lib/ai/kit-tool";
 import type { KitStreamEvent, SavedKitDTO, SavedKitSectionDTO } from "@/lib/kits";
+import { sectionToMarkdown, kitToMarkdown } from "@/lib/kit-markdown";
 
 /**
  * Kit panel shown inside the job-detail drawer.
@@ -32,10 +33,16 @@ const TABS: { kind: KitSectionKind; label: string }[] = [
 
 export function KitPanel({
   jobId,
+  company,
+  role,
+  location,
   initialKit,
   profileReady,
 }: {
   jobId: string;
+  company: string;
+  role: string;
+  location: string | null;
   initialKit: SavedKitDTO | null;
   profileReady: boolean;
 }) {
@@ -157,14 +164,25 @@ export function KitPanel({
             </button>
           ))}
         </div>
-        <Button
-          variant="secondary"
-          onClick={generate}
-          disabled={streaming}
-          title="Regenerate the full kit"
-        >
-          {streaming ? "Streaming…" : "Regenerate"}
-        </Button>
+        <div className="flex items-center gap-1">
+          {kit && !streaming && (
+            <Button
+              variant="tertiary"
+              onClick={() => downloadFullKitMarkdown(kit, { company, role, location })}
+              title="Download the full kit as Markdown"
+            >
+              ↓ .md
+            </Button>
+          )}
+          <Button
+            variant="secondary"
+            onClick={generate}
+            disabled={streaming}
+            title="Regenerate the full kit"
+          >
+            {streaming ? "Streaming…" : "Regenerate"}
+          </Button>
+        </div>
       </div>
 
       <p className="text-caption text-ink-tertiary flex items-center gap-2">
@@ -194,6 +212,8 @@ export function KitPanel({
         ) : kit ? (
           <SectionShell
             jobId={jobId}
+            company={company}
+            role={role}
             kind={active}
             section={kit.sections.find((s) => s.kind === active)!}
             onSectionUpdated={(updated) => {
@@ -220,11 +240,15 @@ export function KitPanel({
 
 function SectionShell({
   jobId,
+  company,
+  role,
   kind,
   section,
   onSectionUpdated,
 }: {
   jobId: string;
+  company: string;
+  role: string;
   kind: KitSectionKind;
   section: SavedKitSectionDTO;
   onSectionUpdated: (s: SavedKitSectionDTO) => void;
@@ -232,8 +256,19 @@ function SectionShell({
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState<"save" | "revert" | "regen" | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const edited = section.editedContent !== null;
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(sectionToMarkdown(section));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setErr("Clipboard write failed.");
+    }
+  }
 
   async function save(edited: SavedKitSectionDTO["content"]) {
     setBusy("save");
@@ -312,11 +347,34 @@ function SectionShell({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-caption text-ink-tertiary">
           {edited ? "Edited" : "Original"}
         </p>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
+          {!editing && (
+            <Button variant="tertiary" onClick={copy} disabled={!!busy}>
+              {copied ? "Copied ✓" : "Copy"}
+            </Button>
+          )}
+          {!editing && kind === "cover_letter" && (
+            <a
+              href={`/api/jobs/${encodeURIComponent(jobId)}/kit/cover-letter.pdf`}
+              download
+              className="inline-flex items-center justify-center gap-2 h-9 px-3.5 rounded-md bg-transparent text-ink hover:bg-surface-1 text-button transition-colors cursor-pointer"
+            >
+              ↓ PDF
+            </a>
+          )}
+          {!editing && (
+            <Button
+              variant="tertiary"
+              onClick={() => downloadSectionMarkdown(section, { company, role })}
+              title="Download just this section as Markdown"
+            >
+              ↓ .md
+            </Button>
+          )}
           {!editing && (
             <Button
               variant="tertiary"
@@ -479,6 +537,47 @@ function BulletsEditor({
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Download helpers — pure client-side blob → anchor → click. No server roundtrip.
+
+function downloadBlob(filename: string, content: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function slug(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^\w-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
+}
+
+function downloadSectionMarkdown(
+  section: SavedKitSectionDTO,
+  meta: { company: string; role: string },
+) {
+  const filename = `${slug(meta.company)}_${slug(meta.role)}_${section.kind}.md`;
+  downloadBlob(filename, sectionToMarkdown(section), "text/markdown");
+}
+
+function downloadFullKitMarkdown(
+  kit: SavedKitDTO,
+  meta: { company: string; role: string; location: string | null },
+) {
+  const filename = `${slug(meta.company)}_${slug(meta.role)}_kit.md`;
+  downloadBlob(filename, kitToMarkdown(kit, meta), "text/markdown");
+}
+
+// ---------------------------------------------------------------------------
 
 function JsonEditor({
   initial,

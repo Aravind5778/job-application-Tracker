@@ -246,6 +246,9 @@ export function JobDetailDrawer({
                 <KitPanel
                   key={job.id}
                   jobId={job.id}
+                  company={job.company}
+                  role={job.role}
+                  location={job.location}
                   initialKit={kit}
                   profileReady={profileReady}
                 />
