@@ -1,16 +1,20 @@
 import { TopNav } from "@/components/layout/top-nav";
 import { ColumnsEditor } from "@/components/settings/columns-editor";
 import { ApiKeyEditor } from "@/components/settings/api-key-editor";
+import { AiLogTable } from "@/components/settings/ai-log-table";
 import { listColumns } from "@/lib/columns";
 import { getAnthropicApiKey } from "@/lib/ai/client";
+import { listAiLog, totalSpendCents } from "@/lib/ai-log";
 
 // Settings always reflects the live DB state — don't cache between requests.
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const [columns, key] = await Promise.all([
+  const [columns, key, aiLog, total] = await Promise.all([
     listColumns(),
     getAnthropicApiKey(),
+    listAiLog(30),
+    totalSpendCents(),
   ]);
   const hasKey = !!key;
   const fromEnv = !!process.env.ANTHROPIC_API_KEY;
@@ -42,6 +46,13 @@ export default async function SettingsPage() {
               <h2 className="text-card-title text-ink">Anthropic API key</h2>
             </header>
             <ApiKeyEditor hasKey={hasKey} fromEnv={fromEnv} />
+          </section>
+
+          <section className="mt-12">
+            <header className="mb-4">
+              <h2 className="text-card-title text-ink">AI usage</h2>
+            </header>
+            <AiLogTable entries={aiLog} totalCents={total} />
           </section>
         </div>
       </main>

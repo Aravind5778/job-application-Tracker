@@ -1,36 +1,131 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Job Search Copilot
 
-## Getting Started
+A local-only web app for tracking a job search and generating tailored
+application kits (cover letter, four résumé bullets, five likely interview
+questions, one-page company brief) with one click.
 
-First, run the development server:
+Stack: **Next.js 16 · TypeScript · Tailwind v4 · Prisma 7 + SQLite ·
+dnd-kit · Radix UI · Anthropic Claude (Opus / Haiku) · @react-pdf/renderer**.
+
+Designed against the Linear dark-canvas visual system (see
+`design.md`). Light mode is supported as a courtesy; dark is the default.
+
+## Quick start
 
 ```bash
+# 1. install
+npm install
+
+# 2. set up the database (creates ./data/app.db, applies the schema,
+#    and seeds the four default pipeline columns)
+npx prisma migrate dev --name init   # one-time per checkout
+npm run db:seed                       # idempotent — safe to re-run
+
+# 3. run
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# open http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+To wipe the DB and start over:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run db:reset && npm run db:seed
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Configuration
 
-## Learn More
+Anthropic API key (required for **Generate Kit** and for AI-assisted
+listing parsing on the paste flow):
 
-To learn more about Next.js, take a look at the following resources:
+- **Easiest**: open the app, go to **Settings → Anthropic API key**, paste
+  your key. It's stored in the local SQLite DB; nothing is ever logged or
+  echoed back.
+- **Env var (overrides DB value)**: add to `.env`:
+  ```
+  ANTHROPIC_API_KEY=sk-ant-…
+  ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Database location: `./data/app.db` (gitignored). The folder is auto-created.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## What's where
 
-## Deploy on Vercel
+```
+src/
+├── app/                     Next.js App Router
+│   ├── page.tsx             /            board
+│   ├── profile/page.tsx     /profile     résumé + background
+│   ├── settings/page.tsx    /settings    columns, API key, AI usage
+│   ├── error.tsx            global error boundary
+│   └── api/
+│       ├── jobs/            CRUD + reorder + kit + cover-letter.pdf
+│       ├── columns/         CRUD + reorder
+│       ├── profile/
+│       ├── parse-listing/   URL fetch + Haiku paste meta-extract
+│       └── settings/anthropic-key/
+├── components/
+│   ├── board/               BoardGrid, SortableJobCard, JobCardPreview
+│   ├── job/                 AddJobModal, JobDetailDrawer, KitPanel
+│   ├── settings/            ColumnsEditor, ApiKeyEditor, AiLogTable
+│   ├── profile/             ProfileEditor
+│   ├── theme/               ThemeProvider, ThemeToggle (dark default)
+│   ├── layout/              TopNav, KeyboardShortcuts
+│   └── ui/                  Button, BrandMark, Dialog (modal + drawer)
+└── lib/
+    ├── db.ts                Prisma client singleton (better-sqlite3 adapter)
+    ├── columns.ts           Column service (10-step sparse ordering)
+    ├── jobs.ts              Job service (per-column ordering, reorderJobs)
+    ├── kits.ts              generateKit / generateKitStream / regenerate
+    ├── profile.ts           Singleton Profile row
+    ├── kit-markdown.ts      Markdown renderers per section
+    ├── ai/
+    │   ├── client.ts        getAnthropicClient + model constants
+    │   ├── kit-tool.ts      emit_application_kit tool schema + types
+    │   └── prompts.ts       Persona + profile system block (cached)
+    ├── parse/
+    │   ├── fetch-url.ts
+    │   ├── jsonld.ts        schema.org JobPosting extractor
+    │   ├── readability.ts   Mozilla Readability fallback
+    │   └── meta-extract.ts  Haiku forced-tool-use for paste flow
+    └── pdf/cover-letter.tsx  @react-pdf/renderer document
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Notable design choices
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Local-first.** SQLite at `./data/app.db`. No auth, no cloud sync.
+- **Adaptive column grid.** `repeat(N, minmax(220px, 1fr))` so 4–6 columns
+  fit in one row without horizontal scroll.
+- **Sparse `order` fields.** Columns and per-column jobs use 10-step
+  ordering; reorder rewrites in one transaction via two-pass negative→
+  positive renumber so the `@unique` constraint never collides mid-move.
+- **URL drawer.** Job detail opens via `?job=<id>` rather than an
+  intercepting route — back-button friendly, deep-linkable, and avoids
+  parallel-slot complexity.
+- **Prompt caching.** The system block (persona + your profile) is
+  marked `cache_control: ephemeral`. Generating multiple kits in the same
+  five-minute window pays the cache only once.
+- **Forced tool use.** The kit generator declares one tool
+  (`emit_application_kit`) with strict input shape; the model is forced
+  to call it. We never parse free-form JSON out of markdown.
+- **Streaming.** Generate Kit reads the tool input as it streams in, parses
+  the partial JSON with `partial-json`, and renders each section
+  progressively. The first sentence of the cover letter appears in ~1s.
+
+## Keyboard shortcuts
+
+| Key | Action |
+| --- | --- |
+| `n` | Open the Add-Job modal |
+| `Esc` | Close any open dialog (Radix) |
+
+## Scripts
+
+```
+npm run dev          start dev server (Turbopack)
+npm run build        production build
+npm run start        run the production build
+npm run lint         eslint
+npm run db:migrate   prisma migrate dev (interactive)
+npm run db:reset     wipe + reapply migrations
+npm run db:seed      run prisma/seed.ts
+```

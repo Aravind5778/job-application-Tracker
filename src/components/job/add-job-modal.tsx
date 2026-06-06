@@ -198,7 +198,8 @@ export function AddJobModal({ columns }: { columns: ColumnDTO[] }) {
         <Button
           variant="primary"
           disabled={noColumns}
-          title={noColumns ? "Add a column in Settings first" : "Add a job"}
+          data-shortcut="add-job"
+          title={noColumns ? "Add a column in Settings first" : "Add a job (n)"}
         >
           Add job
         </Button>
