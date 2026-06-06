@@ -184,12 +184,350 @@ export function KitPanel({
       )}
 
       <div className="rounded-lg border border-hairline bg-canvas p-4">
-        <PartialOrSavedView
-          active={active}
-          kit={kit}
-          partial={partial}
-          streaming={streaming}
+        {streaming ? (
+          <PartialOrSavedView
+            active={active}
+            kit={kit}
+            partial={partial}
+            streaming={streaming}
+          />
+        ) : kit ? (
+          <SectionShell
+            jobId={jobId}
+            kind={active}
+            section={kit.sections.find((s) => s.kind === active)!}
+            onSectionUpdated={(updated) => {
+              setKit((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      sections: prev.sections.map((s) =>
+                        s.kind === updated.kind ? updated : s,
+                      ),
+                    }
+                  : prev,
+              );
+            }}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// Per-section shell with view ↔ edit toggle, Revert, and Regenerate actions.
+
+function SectionShell({
+  jobId,
+  kind,
+  section,
+  onSectionUpdated,
+}: {
+  jobId: string;
+  kind: KitSectionKind;
+  section: SavedKitSectionDTO;
+  onSectionUpdated: (s: SavedKitSectionDTO) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState<"save" | "revert" | "regen" | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const edited = section.editedContent !== null;
+
+  async function save(edited: SavedKitSectionDTO["content"]) {
+    setBusy("save");
+    setErr(null);
+    try {
+      const res = await fetch(
+        `/api/jobs/${encodeURIComponent(jobId)}/kit/section/${kind}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ edited }),
+        },
+      );
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? `Save failed (${res.status}).`);
+      }
+      const { section: next } = (await res.json()) as {
+        section: SavedKitSectionDTO;
+      };
+      onSectionUpdated(next);
+      setEditing(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Save failed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function revert() {
+    setBusy("revert");
+    setErr(null);
+    try {
+      const res = await fetch(
+        `/api/jobs/${encodeURIComponent(jobId)}/kit/section/${kind}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ edited: null }),
+        },
+      );
+      if (!res.ok) throw new Error(`Revert failed (${res.status}).`);
+      const { section: next } = (await res.json()) as {
+        section: SavedKitSectionDTO;
+      };
+      onSectionUpdated(next);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Revert failed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function regenerate() {
+    setBusy("regen");
+    setErr(null);
+    try {
+      const res = await fetch(
+        `/api/jobs/${encodeURIComponent(jobId)}/kit/section/${kind}/regenerate`,
+        { method: "POST" },
+      );
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? `Regenerate failed (${res.status}).`);
+      }
+      const { section: next } = (await res.json()) as {
+        section: SavedKitSectionDTO;
+      };
+      onSectionUpdated(next);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Regenerate failed.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-caption text-ink-tertiary">
+          {edited ? "Edited" : "Original"}
+        </p>
+        <div className="flex items-center gap-1">
+          {!editing && (
+            <Button
+              variant="tertiary"
+              onClick={() => setEditing(true)}
+              disabled={!!busy}
+            >
+              Edit
+            </Button>
+          )}
+          {edited && !editing && (
+            <Button
+              variant="tertiary"
+              onClick={revert}
+              disabled={!!busy}
+              title="Discard your edits and restore the model output"
+            >
+              {busy === "revert" ? "Reverting…" : "Revert"}
+            </Button>
+          )}
+          {!editing && (
+            <Button
+              variant="secondary"
+              onClick={regenerate}
+              disabled={!!busy}
+              title="Regenerate this section; keeps the others as-is"
+            >
+              {busy === "regen" ? "Regenerating…" : "Regenerate"}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {err && (
+        <p className="text-body-sm text-ink">{err}</p>
+      )}
+
+      {editing ? (
+        <SectionEditor
+          kind={kind}
+          initial={section.editedContent ?? section.content}
+          busy={busy === "save"}
+          onCancel={() => setEditing(false)}
+          onSave={save}
         />
+      ) : (
+        <SectionView section={section} />
+      )}
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// SectionEditor — variant per kind:
+//
+//   cover_letter  → single textarea (markdown)
+//   resume_bullets → 4 textareas, one per bullet
+//   interview_questions / company_brief → JSON textarea, parsed on save.
+//     Structured editors for these would be nicer but they're rarely the
+//     piece the user wants to hand-tune — usually it's the cover letter
+//     or one of the bullets.
+
+function SectionEditor({
+  kind,
+  initial,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  kind: KitSectionKind;
+  initial: SavedKitSectionDTO["content"];
+  busy: boolean;
+  onSave: (v: SavedKitSectionDTO["content"]) => void;
+  onCancel: () => void;
+}) {
+  if (kind === "cover_letter") {
+    return <CoverLetterEditor initial={initial as string} busy={busy} onSave={onSave} onCancel={onCancel} />;
+  }
+  if (kind === "resume_bullets") {
+    return <BulletsEditor initial={initial as string[]} busy={busy} onSave={onSave} onCancel={onCancel} />;
+  }
+  return <JsonEditor initial={initial} busy={busy} onSave={onSave} onCancel={onCancel} />;
+}
+
+function CoverLetterEditor({
+  initial,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  initial: string;
+  busy: boolean;
+  onSave: (v: string) => void;
+  onCancel: () => void;
+}) {
+  const [text, setText] = useState(initial);
+  return (
+    <div className="space-y-2">
+      <textarea
+        autoFocus
+        rows={18}
+        className="w-full px-3 py-2 rounded-md bg-surface-1 border border-hairline focus:border-hairline-strong text-body-sm text-ink resize-y min-h-[260px] font-sans"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        disabled={busy}
+      />
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={onCancel} disabled={busy}>
+          Cancel
+        </Button>
+        <Button onClick={() => onSave(text)} disabled={busy}>
+          {busy ? "Saving…" : "Save"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function BulletsEditor({
+  initial,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  initial: string[];
+  busy: boolean;
+  onSave: (v: string[]) => void;
+  onCancel: () => void;
+}) {
+  const [bullets, setBullets] = useState<string[]>(() =>
+    initial.length === 4 ? [...initial] : [...initial, "", "", "", ""].slice(0, 4),
+  );
+  return (
+    <div className="space-y-3">
+      {bullets.map((b, i) => (
+        <textarea
+          key={i}
+          rows={3}
+          className="w-full px-3 py-2 rounded-md bg-surface-1 border border-hairline focus:border-hairline-strong text-body-sm text-ink resize-y"
+          value={b}
+          onChange={(e) => {
+            const next = [...bullets];
+            next[i] = e.target.value;
+            setBullets(next);
+          }}
+          disabled={busy}
+          placeholder={`Bullet ${i + 1}`}
+        />
+      ))}
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={onCancel} disabled={busy}>
+          Cancel
+        </Button>
+        <Button
+          onClick={() => onSave(bullets.map((b) => b.trim()))}
+          disabled={busy || bullets.some((b) => !b.trim())}
+        >
+          {busy ? "Saving…" : "Save"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function JsonEditor({
+  initial,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  initial: SavedKitSectionDTO["content"];
+  busy: boolean;
+  onSave: (v: SavedKitSectionDTO["content"]) => void;
+  onCancel: () => void;
+}) {
+  const [text, setText] = useState(() => JSON.stringify(initial, null, 2));
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  function save() {
+    try {
+      const parsed = JSON.parse(text);
+      setParseError(null);
+      onSave(parsed);
+    } catch (e) {
+      setParseError(e instanceof Error ? e.message : "Invalid JSON.");
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-caption text-ink-subtle">
+        Edit the JSON directly. The server will reject malformed shapes.
+      </p>
+      <textarea
+        autoFocus
+        rows={18}
+        className="w-full px-3 py-2 rounded-md bg-surface-1 border border-hairline focus:border-hairline-strong text-body-sm text-ink resize-y min-h-[260px] font-mono"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        disabled={busy}
+        spellCheck={false}
+      />
+      {parseError && (
+        <p className="text-caption text-ink">JSON error: {parseError}</p>
+      )}
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={onCancel} disabled={busy}>
+          Cancel
+        </Button>
+        <Button onClick={save} disabled={busy}>
+          {busy ? "Saving…" : "Save"}
+        </Button>
       </div>
     </div>
   );

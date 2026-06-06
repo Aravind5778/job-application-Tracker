@@ -399,8 +399,139 @@ async function persistKit(
 }
 
 // ---------------------------------------------------------------------------
-// Edit + revert (Phase 9 wires the UI; the service is here so the API route
-// added in this phase can already round-trip edits.)
+// Regenerate one section
+//
+// Reuses the same emit_application_kit tool — easier than maintaining a
+// separate per-section tool — and tells the model which sections to keep,
+// then writes only the target section back to the DB. The kept sections'
+// existing values (preferring editedContent) go into the prompt so the
+// regenerated output matches the user's voice.
+
+export async function regenerateKitSection(
+  jobId: string,
+  kind: KitSectionKind,
+): Promise<SavedKitSectionDTO> {
+  const job = await getJob(jobId);
+  if (!job) throw new KitInputError("Job not found.");
+  const existing = await getKit(jobId);
+  if (!existing) {
+    throw new KitInputError("Generate the full kit first.");
+  }
+  const profile = await getProfile();
+  if (isProfileEmpty(profile)) {
+    throw new KitInputError("Your profile is empty.");
+  }
+  const client = await getAnthropicClient();
+  if (!client) {
+    throw new KitInputError("No Anthropic API key configured.");
+  }
+
+  // Build the "keep these, regenerate that" instruction. The kept sections
+  // double as a voice sample for the model.
+  const kept = existing.sections
+    .filter((s) => s.kind !== kind)
+    .map((s) => ({
+      kind: s.kind,
+      value: s.editedContent ?? s.content,
+    }));
+
+  const userMessage =
+    buildKitUserMessage({
+      company: job.company,
+      role: job.role,
+      location: job.location,
+      listingText:
+        job.listingText.length > MAX_LISTING_CHARS
+          ? job.listingText.slice(0, MAX_LISTING_CHARS) + "\n\n[truncated]"
+          : job.listingText,
+    }) +
+    "\n\n## Kept sections (match this voice and specificity)\n\n" +
+    kept
+      .map(
+        (k) =>
+          `### ${k.kind}\n\n` +
+          (typeof k.value === "string" ? k.value : JSON.stringify(k.value, null, 2)),
+      )
+      .join("\n\n") +
+    `\n\n## Task\n\nRegenerate ONLY the \`${kind}\` field. The other fields will be discarded — feel free to copy them verbatim from the kept sections above. Keep the same tone and specificity as the kept sections.`;
+
+  const model = MODELS.opus;
+  const t0 = Date.now();
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cacheReadTokens = 0;
+  let cacheWriteTokens = 0;
+
+  try {
+    const res = await client.messages.create({
+      model,
+      max_tokens: 2000,
+      system: buildSystemBlocks(profile),
+      tools: [KIT_TOOL],
+      tool_choice: { type: "tool", name: KIT_TOOL_NAME },
+      messages: [{ role: "user", content: userMessage }],
+    });
+
+    inputTokens = res.usage?.input_tokens ?? 0;
+    outputTokens = res.usage?.output_tokens ?? 0;
+    cacheReadTokens = res.usage?.cache_read_input_tokens ?? 0;
+    cacheWriteTokens = res.usage?.cache_creation_input_tokens ?? 0;
+
+    let content: KitContent | null = null;
+    for (const block of res.content) {
+      if (block.type === "tool_use" && block.name === KIT_TOOL_NAME) {
+        content = validateKitContent(block.input);
+        break;
+      }
+    }
+    if (!content) {
+      throw new KitInputError("Model didn't call the tool. Try again.");
+    }
+
+    await logKitCall({
+      jobId,
+      model,
+      operation: "kit_section",
+      latencyMs: Date.now() - t0,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      cacheWriteTokens,
+      error: null,
+    });
+
+    // Persist only the target section. Editing keeps the user's editedContent
+    // intact if they had any — regeneration is an update to `content` only.
+    const kit = await prisma.kit.findUnique({ where: { jobId } });
+    if (!kit) throw new KitInputError("Kit vanished mid-regenerate.");
+    const updated = await prisma.kitSection.update({
+      where: { kitId_kind: { kitId: kit.id, kind } },
+      data: {
+        content: encodeSection(kind, content[kind]),
+        // Drop any prior edit so the fresh model output is visible.
+        editedContent: null,
+      },
+    });
+    return rowToSectionDTO(updated);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await logKitCall({
+      jobId,
+      model,
+      operation: "kit_section",
+      latencyMs: Date.now() - t0,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      cacheWriteTokens,
+      error: msg,
+    });
+    throw e;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Edit + revert
 
 export async function updateKitSection(
   jobId: string,
