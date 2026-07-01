@@ -33,11 +33,12 @@ const variantContent: Record<Variant, string> = {
     "w-[min(720px,calc(100vw-32px))] max-h-[calc(100vh-64px)] " +
     "rounded-xl border border-hairline bg-surface-1 shadow-2xl " +
     "flex flex-col overflow-hidden",
+  // Full-screen "page" — cover the whole viewport, canvas background,
+  // no border. The caller supplies its own top bar (usually with a
+  // Back arrow) since the DialogHeader default has a close × that
+  // doesn't fit a full-page treatment.
   drawer:
-    "fixed right-0 top-0 z-50 h-screen " +
-    "w-[min(680px,100vw)] " +
-    "border-l border-hairline bg-surface-1 " +
-    "flex flex-col overflow-hidden",
+    "fixed inset-0 z-50 bg-canvas flex flex-col overflow-hidden",
 };
 
 export function DialogContent({

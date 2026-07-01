@@ -21,13 +21,9 @@ export function sectionToMarkdown(section: SavedKitSectionDTO): string {
     case "interview_questions":
       return (value as InterviewQuestion[])
         .map((q, i) => {
-          const parts = [
-            `### ${i + 1}. ${q.question}`,
-            `**Why it matters:** ${q.why_it_matters}`,
-            `**Approach:** ${q.approach}`,
-          ];
+          const parts = [`### ${i + 1}. ${q.question}`];
           if (q.sample_answer && q.sample_answer.trim()) {
-            parts.push(`**Sample answer:**\n\n${q.sample_answer}`);
+            parts.push(q.sample_answer);
           }
           return parts.join("\n\n");
         })

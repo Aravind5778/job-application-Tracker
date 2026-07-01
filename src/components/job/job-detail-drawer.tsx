@@ -4,8 +4,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
-  DialogHeader,
+  DialogDescription,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { KitPanel } from "./kit-panel";
@@ -164,14 +166,52 @@ export function JobDetailDrawer({
   return (
     <Dialog open={!!jobId} onOpenChange={(o) => !o && close()}>
       <DialogContent variant="drawer">
-        <DialogHeader
-          title={job ? `${job.company} — ${job.role}` : "Loading…"}
-          description={
-            job?.location ? job.location : loadError ? loadError : undefined
-          }
-        />
+        {/*
+          Full-screen page header. Left: sticky "← Back" that closes the
+          drawer and returns to the board. Center-left: title + subtitle.
+          No trailing close × — the back arrow is the only exit.
+        */}
+        <header className="flex items-center gap-3 h-14 px-6 border-b border-hairline bg-canvas sticky top-0 z-10">
+          <DialogClose asChild>
+            <button
+              aria-label="Back to board"
+              title="Back to board"
+              className="
+                inline-flex items-center gap-1.5 h-9 px-2.5 rounded-md
+                text-ink-subtle hover:text-ink hover:bg-surface-1
+                text-button transition-colors cursor-pointer
+              "
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+              <span className="hidden sm:inline">Back</span>
+            </button>
+          </DialogClose>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+          <div className="min-w-0 flex-1">
+            <DialogTitle className="text-card-title text-ink truncate">
+              {job ? `${job.company} — ${job.role}` : "Loading…"}
+            </DialogTitle>
+            {(job?.location || loadError) && (
+              <DialogDescription className="text-body-sm text-ink-subtle truncate">
+                {loadError ?? job?.location}
+              </DialogDescription>
+            )}
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto space-y-6 px-6 py-8 mx-auto w-full max-w-[960px]">
           {actionError && (
             <div className="rounded-md border border-hairline-strong bg-surface-2 px-3 py-2 text-body-sm text-ink">
               {actionError}
@@ -258,17 +298,16 @@ export function JobDetailDrawer({
         </div>
 
         {job && (
-          <footer className="flex items-center justify-between gap-2 px-6 py-3 border-t border-hairline bg-surface-1">
+          // Back arrow in the header is the primary exit; the footer keeps
+          // just the destructive action.
+          <footer className="flex items-center justify-end gap-2 px-6 py-3 border-t border-hairline bg-canvas">
             <Button
               variant="tertiary"
               onClick={remove}
               disabled={pending}
               className="text-ink-subtle hover:text-ink"
             >
-              Delete
-            </Button>
-            <Button variant="secondary" onClick={close} disabled={pending}>
-              Close
+              Delete job
             </Button>
           </footer>
         )}

@@ -52,13 +52,20 @@ export const KIT_SCHEMA = {
           sample_answer: {
             type: "string",
             description:
-              "A full ~180–260 word first-person practice answer the " +
-              "candidate can rehearse. STAR-style (Situation, Task, " +
-              "Action, Result) when the question is behavioral. Draw on " +
-              "the candidate's actual résumé — quantified numbers, real " +
-              "company names, real projects — never fabricated. If the " +
-              "listing implies a tool/skill the résumé doesn't cover, " +
-              "acknowledge the adjacency honestly.",
+              "The full first-person answer the candidate literally says " +
+              "in the room, 280–400 words, start to end. Write the words " +
+              "the candidate speaks — never coaching prose. FORBIDDEN " +
+              "openings/phrases: 'You can say', 'You could', 'Focus on', " +
+              "'Highlight that', 'Explain that', 'Discuss', 'Emphasize', " +
+              "'Start by', 'Consider mentioning', 'For example, you might'. " +
+              "STAR structure when the question is behavioral (Situation, " +
+              "Task, Action, Result) but written in flowing prose, no " +
+              "labeled headers. Every project, company, tool, and number " +
+              "must come from the candidate's actual résumé — never " +
+              "invented. If the listing implies a tool the résumé doesn't " +
+              "cover, acknowledge the adjacency honestly in first person " +
+              "(e.g. 'I haven't used Splunk directly, but I've built " +
+              "similar log-analysis pipelines in Grafana Loki…').",
           },
         },
       },

@@ -807,32 +807,21 @@ function QuestionsView({ questions }: { questions: InterviewQuestion[] }) {
 
   return (
     <div className="space-y-5">
-      {/* Summary: all 10 questions with why + approach, as before. */}
-      <ol className="list-decimal pl-5 space-y-4 text-body-sm text-ink">
+      {/* Summary: clean numbered list of the 10 questions — no coaching
+          labels. Click a pill below to see the full first-person answer. */}
+      <ol className="list-decimal pl-5 space-y-3 text-body-sm text-ink marker:text-ink-tertiary">
         {questions.map((q, i) => (
-          <li key={i} className="space-y-1">
-            <p className="text-ink">{q.question}</p>
-            <p className="text-ink-muted">
-              <span className="text-caption text-ink-subtle uppercase tracking-wide mr-2">
-                Why
-              </span>
-              {q.why_it_matters}
-            </p>
-            <p className="text-ink-muted">
-              <span className="text-caption text-ink-subtle uppercase tracking-wide mr-2">
-                Approach
-              </span>
-              {q.approach}
-            </p>
+          <li key={i} className="text-ink leading-relaxed">
+            {q.question}
           </li>
         ))}
       </ol>
 
-      {/* Pagination bar → click a number to expand its sample answer below. */}
+      {/* Pagination bar → click a number to expand its full answer below. */}
       <div className="border-t border-hairline pt-4 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <p className="text-caption text-ink-subtle uppercase tracking-wide">
-            Practice with sample answers
+            Practice answers
           </p>
           {selected !== null && (
             <button
@@ -870,9 +859,8 @@ function QuestionsView({ questions }: { questions: InterviewQuestion[] }) {
 
         {!anyHasAnswer && (
           <p className="text-caption text-ink-tertiary">
-            This kit was generated before sample answers were added.
-            Regenerate the Questions section to include a full practice
-            answer per question.
+            This kit was generated before answers were added. Regenerate the
+            Questions section to include a full spoken answer per question.
           </p>
         )}
 
@@ -893,31 +881,17 @@ function QuestionDetail({
 }) {
   const hasAnswer = !!q.sample_answer && q.sample_answer.trim().length > 0;
   return (
-    <div className="rounded-lg border border-hairline bg-surface-1 p-4 space-y-3 text-body-sm text-ink">
-      <div className="flex items-baseline gap-2">
-        <span className="text-caption text-ink-subtle uppercase tracking-wide">
+    <div className="rounded-lg border border-hairline bg-surface-1 p-5 space-y-4 text-body text-ink">
+      <div>
+        <p className="text-caption text-ink-subtle uppercase tracking-wide mb-2">
           Question {index}
-        </span>
-      </div>
-      <p className="text-body-lg text-ink leading-snug">{q.question}</p>
-
-      <div>
-        <p className="text-caption text-ink-subtle uppercase tracking-wide mb-1">
-          Why it matters
         </p>
-        <p className="text-ink-muted">{q.why_it_matters}</p>
+        <p className="text-body-lg text-ink leading-snug">{q.question}</p>
       </div>
 
       <div>
-        <p className="text-caption text-ink-subtle uppercase tracking-wide mb-1">
-          Approach
-        </p>
-        <p className="text-ink-muted">{q.approach}</p>
-      </div>
-
-      <div>
-        <p className="text-caption text-ink-subtle uppercase tracking-wide mb-1">
-          Sample answer
+        <p className="text-caption text-ink-subtle uppercase tracking-wide mb-2">
+          Your answer
         </p>
         {hasAnswer ? (
           <p className="text-ink whitespace-pre-wrap leading-relaxed">

@@ -25,7 +25,11 @@ Honesty rules:
 - If the listing doesn't include enough info for a confident interview question or company brief field, write a shorter, more honest answer rather than padding.
 
 Interview questions:
-- For each of the 10 questions, produce a full first-person sample_answer (~200 words) drawing on the candidate's actual résumé. STAR structure when the question is behavioral: Situation, Task, Action, Result. Reference specific projects, numbers, and technologies the résumé already mentions. Never fabricate a project or a metric. If the question probes a tool the résumé doesn't cover, acknowledge the adjacency honestly rather than pretending to have used it.
+- For each of the 10 questions, produce a full first-person sample_answer of 280–400 words that the candidate literally reads or paraphrases in the room. Write it as the candidate's actual spoken words — never coaching prose.
+- STRICTLY FORBIDDEN in sample_answer: any second-person framing ("You can", "You could", "You might"), any imperative coaching ("Focus on", "Highlight", "Discuss", "Emphasize", "Start by", "Consider", "Mention"), and any meta reference to the interview itself.
+- Good answer opener: "At Happiest Minds, working on the DoubleVerify project, I inherited a manual deployment process that…". Bad opener (rewrite): "You should talk about your work at Happiest Minds where…".
+- STAR structure when the question is behavioral (Situation → Task → Action → Result), but delivered as continuous prose — no labeled headers inside the answer.
+- Every project, company, tool, and number in an answer must come from the candidate's actual résumé. If the question probes a tool the résumé doesn't cover, acknowledge the adjacency honestly in first person.
 
 Output:
 - Respond ONLY with a single JSON object that matches the schema exactly. No prose before or after. No markdown code fences. Just the raw JSON.
