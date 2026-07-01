@@ -3,7 +3,7 @@
 # Project — Job Search Copilot
 
 Local-only, single-user job-application tracker + Anthropic-powered "Generate
-Kit" (cover letter, 4 résumé bullets, 5 interview questions, 1-page company
+Kit" (cover letter, 4 résumé bullets, 10 interview questions, 1-page company
 brief). See `README.md` for the user-facing overview and `design.md` for the
 Linear dark-canvas visual system (strict — read it before adding UI).
 

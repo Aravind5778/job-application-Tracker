@@ -1,7 +1,7 @@
 # Job Search Copilot
 
 A local-only web app for tracking a job search and generating tailored
-application kits (cover letter, four résumé bullets, five likely interview
+application kits (cover letter, four résumé bullets, ten likely interview
 questions, one-page company brief) with one click.
 
 Stack: **Next.js 16 · TypeScript · Tailwind v4 · Prisma 7 + SQLite ·

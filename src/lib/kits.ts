@@ -119,7 +119,7 @@ function encodeSection(kind: KitSectionKind, value: unknown): string {
 
 const MAX_LISTING_CHARS = 12_000;
 // Gemini 2.5 Flash caps out around 8192 output tokens per response.
-// A full kit (400-word cover letter + 4 bullets + 5 questions with 3
+// A full kit (400-word cover letter + 4 bullets + 10 questions with 3
 // sub-fields each + company brief with 5 sub-fields) comfortably fits
 // in ~5–6k tokens; we set the ceiling generously and rely on
 // responseJsonSchema to keep the model on task.

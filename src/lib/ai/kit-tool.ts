@@ -37,8 +37,8 @@ export const KIT_SCHEMA = {
     },
     interview_questions: {
       type: "array",
-      minItems: 5,
-      maxItems: 5,
+      minItems: 10,
+      maxItems: 10,
       items: {
         type: "object",
         required: ["question", "why_it_matters", "approach"],
@@ -151,7 +151,7 @@ export function validateKitContent(input: unknown): KitContent {
   }
   if (
     !Array.isArray(o.interview_questions) ||
-    o.interview_questions.length !== 5 ||
+    o.interview_questions.length !== 10 ||
     !o.interview_questions.every(
       (q) =>
         q &&
@@ -161,7 +161,7 @@ export function validateKitContent(input: unknown): KitContent {
         isString((q as InterviewQuestion).approach),
     )
   ) {
-    throw new Error("interview_questions must be 5 well-formed objects.");
+    throw new Error("interview_questions must be 10 well-formed objects.");
   }
   const cb = o.company_brief as CompanyBrief | undefined;
   if (
