@@ -21,6 +21,7 @@
     "@mozilla/readability": "^0.6.0",
     "@prisma/adapter-better-sqlite3": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@radix-ui/react-context-menu": "^2.3.2",
     "@radix-ui/react-dialog": "^1.1.15",
     "@react-pdf/renderer": "^4.5.1",
     "better-sqlite3": "^12.10.0",
