@@ -193,7 +193,12 @@ export function ProfileEditor({ initial }: { initial: ProfileDTO }) {
       </section>
 
       <footer className="flex items-center justify-between gap-3 pt-2 border-t border-hairline">
-        <p className="text-caption text-ink-tertiary">
+        {/*
+          Date formatting is locale-sensitive; server's `en-US` output will
+          usually differ from the client's locale. Suppress the hydration
+          warning here — the client's version is the one we want.
+        */}
+        <p className="text-caption text-ink-tertiary" suppressHydrationWarning>
           {savedAt ? `Last saved ${new Date(savedAt).toLocaleString()}` : "Not saved yet"}
         </p>
         <Button onClick={save} disabled={pending}>

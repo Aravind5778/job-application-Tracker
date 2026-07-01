@@ -185,7 +185,12 @@ export function KitPanel({
         </div>
       </div>
 
-      <p className="text-caption text-ink-tertiary flex items-center gap-2">
+      {/* toLocaleString is locale-sensitive; suppress the SSR-vs-client
+          hydration warning and let the client's format win. */}
+      <p
+        className="text-caption text-ink-tertiary flex items-center gap-2"
+        suppressHydrationWarning
+      >
         {streaming ? (
           <span className="text-[var(--color-primary)]">Generating…</span>
         ) : kit ? (
