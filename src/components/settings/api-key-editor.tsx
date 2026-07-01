@@ -4,12 +4,12 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 
 /**
- * Anthropic API key entry. The current key is never echoed back — we only
- * tell the user whether one is set. To rotate, paste a new one; to clear,
- * use the Remove button.
+ * Google Gemini API key entry. The current key is never echoed back — we
+ * only tell the user whether one is set. Rotate by pasting a new one; clear
+ * with the Remove button.
  *
- * If the key is provided by an env var, the field is disabled and we say
- * so — the env value takes precedence over the DB.
+ * If the key comes from the GEMINI_API_KEY env var, the field is disabled
+ * and we say so — env value wins over the DB value.
  */
 export function ApiKeyEditor({
   hasKey,
@@ -29,7 +29,7 @@ export function ApiKeyEditor({
     setStatus(null);
     startTransition(async () => {
       try {
-        const res = await fetch("/api/settings/anthropic-key", {
+        const res = await fetch("/api/settings/google-key", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -52,7 +52,7 @@ export function ApiKeyEditor({
   if (fromEnv) {
     return (
       <div className="rounded-lg border border-hairline bg-surface-1 p-4 text-body-sm text-ink-muted">
-        Key is coming from the <code className="text-ink">ANTHROPIC_API_KEY</code> env
+        Key is coming from the <code className="text-ink">GEMINI_API_KEY</code> env
         var. Edit your <code className="text-ink">.env</code> file to change it.
       </div>
     );
@@ -72,8 +72,17 @@ export function ApiKeyEditor({
           )}
         </div>
         <p className="text-caption text-ink-tertiary">
-          Stored locally in the SQLite DB. Never logged, never leaves your
-          machine except in API calls to Anthropic.
+          Get a free key at{" "}
+          <a
+            href="https://aistudio.google.com/apikey"
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary hover:text-primary-hover"
+          >
+            aistudio.google.com/apikey
+          </a>
+          . Stored locally in SQLite; never logged, never leaves this machine
+          except in API calls to Google.
         </p>
       </div>
 
@@ -81,7 +90,7 @@ export function ApiKeyEditor({
         <input
           type="password"
           autoComplete="off"
-          placeholder={hasKey ? "Paste a new key to rotate" : "sk-ant-…"}
+          placeholder={hasKey ? "Paste a new key to rotate" : "AIza…"}
           className="flex-1 h-9 px-3 rounded-md bg-canvas border border-hairline text-ink text-body-sm placeholder:text-ink-tertiary"
           value={value}
           onChange={(e) => setValue(e.target.value)}

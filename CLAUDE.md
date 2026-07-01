@@ -16,8 +16,10 @@ Plan / roadmap history lives at
 - **Tailwind CSS v4** — CSS-first `@theme` config in `src/app/globals.css`
   (no `tailwind.config.ts` — v4 removed it)
 - **Prisma 7** + SQLite at `./data/app.db`
-- **Anthropic SDK** (`@anthropic-ai/sdk`) — Opus for kit generation, Haiku for
-  paste-flow meta-extract
+- **Google GenAI SDK** (`@google/genai`) — Gemini 2.5 Flash for kit
+  generation, Flash-Lite for paste-flow meta-extract. Free tier is the
+  default target; API key comes from `GEMINI_API_KEY` env or the DB
+  `google_api_key` Setting row.
 - **dnd-kit** for board drag-and-drop
 - **Radix Dialog** for modal + drawer primitives (thin wrapper in
   `src/components/ui/dialog.tsx`)
@@ -92,30 +94,36 @@ letter-spacing / font-weight variants). Don't add `tailwind.config.ts`.
 
 ## AI subsystem
 
+Powered by Google Gemini via `@google/genai`. Structured output is
+enforced via `responseMimeType: "application/json"` + `responseJsonSchema`
+(defined in `src/lib/ai/kit-tool.ts`), so the model's response is
+guaranteed to match the shape — no free-form JSON parsing.
+
 Two entry points, both in `src/lib/`:
 
 - **`kits.ts`** — `generateKit(jobId)` (non-streaming, `POST
   /api/jobs/[id]/kit`) and `generateKitStream(jobId)` (async generator that
   yields `partial` / `done` / `error` events, drives the streaming NDJSON
-  endpoint at `/api/jobs/[id]/kit/stream`). Both use **forced tool-use** on
-  the `emit_application_kit` tool (`src/lib/ai/kit-tool.ts`) — never parse
-  free-form JSON. `regenerateKitSection(jobId, kind)` reuses the same tool,
-  passes the other sections in the user message as a "voice sample," writes
-  only the target section back.
+  endpoint at `/api/jobs/[id]/kit/stream`). The streaming path accumulates
+  Gemini's response text chunks and re-parses on every delta with
+  `partial-json` (`Allow.ALL`), so the drawer's sections fill in
+  progressively. `regenerateKitSection(jobId, kind)` reuses the same schema
+  + prompt shape, passes the other sections as a "voice sample" in the user
+  message, and writes only the target section back to the DB.
 
-- **`parse/meta-extract.ts`** — Haiku forced tool-use for extracting
-  `{company, role, location}` from pasted listing text. Returns null when no
-  API key is configured so the UI degrades to a hand-fill flow.
+- **`parse/meta-extract.ts`** — Gemini 2.5 Flash-Lite call with a small
+  `{ company, role, location }` schema for the paste-flow. Returns null
+  when no API key is configured so the UI degrades to hand-fill.
 
-**Prompt caching.** The system block (persona + profile) is wrapped by
-`buildSystemBlocks` (`src/lib/ai/prompts.ts`) with `cache_control:
-ephemeral`. Multiple kits in the same 5-minute window pay for the profile
-+ persona once. Cache hits show up in `AiLog.cacheReadTokens`.
+**Prompt caching.** Gemini's free tier gets fresh token allocation per
+request, so we don't wire explicit context caching. If you ever swap to
+the paid tier, `client.caches.create({...})` + a `cachedContent` field on
+the config is where that would go.
 
-**API key resolution** (`src/lib/ai/client.ts`): env `ANTHROPIC_API_KEY`
-wins; falls back to the `Setting` row `key = anthropic_api_key` (populated
-via `/settings`). Returns null (not throws) when neither is set so callers
-can degrade.
+**API key resolution** (`src/lib/ai/client.ts`): env `GEMINI_API_KEY`
+wins; falls back to the `Setting` row `key = google_api_key` (populated
+via `/settings`). Returns null (not throws) when neither is set so
+callers can degrade.
 
 ## Verification workflow
 
@@ -160,13 +168,13 @@ src/lib/
   kit-markdown.ts      markdown renderers per section
   ai/
     client.ts          getAnthropicClient + model constants
-    kit-tool.ts        emit_application_kit tool schema + validate
+    kit-tool.ts        Kit JSON Schema (drives Gemini responseJsonSchema)
     prompts.ts         system block builder (cached)
   parse/
     fetch-url.ts       10s timeout + desktop UA
     jsonld.ts          schema.org JobPosting from HTML
     readability.ts     Mozilla Readability fallback
-    meta-extract.ts    Haiku company/role/location
+    meta-extract.ts    Gemini Flash-Lite company/role/location
     resume-file.ts     PDF (pdf-parse v2) + DOCX (mammoth)
   pdf/cover-letter.tsx @react-pdf/renderer document
 ```

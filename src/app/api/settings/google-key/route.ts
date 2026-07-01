@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server";
-import { getAnthropicApiKey, setAnthropicApiKey } from "@/lib/ai/client";
+import { getGoogleApiKey, setGoogleApiKey } from "@/lib/ai/client";
 
 /**
- * Read: returns whether a key is set, NOT the key itself. We never echo
- * the secret back to the browser — once you've pasted it, the only way to
- * change it is to paste a new one or clear it.
+ * GET returns whether a key is set, NOT the key itself. Once pasted the
+ * only way to change it is to paste a new one or clear it.
  */
 export async function GET() {
-  const key = await getAnthropicApiKey();
+  const key = await getGoogleApiKey();
   return NextResponse.json({
     hasKey: !!key,
-    fromEnv: !!process.env.ANTHROPIC_API_KEY,
+    fromEnv: !!process.env.GEMINI_API_KEY,
   });
 }
 
@@ -34,6 +33,6 @@ export async function PATCH(req: Request) {
       { status: 400 },
     );
   }
-  await setAnthropicApiKey(next);
+  await setGoogleApiKey(next);
   return new NextResponse(null, { status: 204 });
 }

@@ -1,29 +1,28 @@
 /**
- * Anthropic SDK accessor + API-key resolution.
+ * Google Gemini SDK accessor + API-key resolution.
  *
  * Key precedence (highest first):
- *   1. process.env.ANTHROPIC_API_KEY  (dev shells / one-off runs)
- *   2. Setting row { key: "anthropic_api_key" }  (the user typed it into /settings)
+ *   1. process.env.GEMINI_API_KEY   (dev shells / one-off runs)
+ *   2. Setting row { key: "google_api_key" }  (typed into /settings)
  *
- * If neither is set we return null; callers should treat that as "AI is
+ * Returns null when no key is configured; callers treat that as "AI is
  * unavailable, fall back to the no-AI happy path."
  *
- * The Anthropic instance is constructed lazily — we don't want every API
- * route boot to instantiate a client (and risk validating its baseURL at
- * cold-start) just because the file is imported.
+ * The GoogleGenAI instance is constructed lazily so importing this file
+ * doesn't spawn a client at cold-start.
  */
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 import { prisma } from "@/lib/db";
 
-const SETTING_KEY = "anthropic_api_key";
+const SETTING_KEY = "google_api_key";
 
-export async function getAnthropicApiKey(): Promise<string | null> {
-  if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY;
+export async function getGoogleApiKey(): Promise<string | null> {
+  if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
   const row = await prisma.setting.findUnique({ where: { key: SETTING_KEY } });
   return row?.value ?? null;
 }
 
-export async function setAnthropicApiKey(value: string | null): Promise<void> {
+export async function setGoogleApiKey(value: string | null): Promise<void> {
   if (!value) {
     await prisma.setting.delete({ where: { key: SETTING_KEY } }).catch(() => {});
     return;
@@ -35,19 +34,21 @@ export async function setAnthropicApiKey(value: string | null): Promise<void> {
   });
 }
 
-export async function getAnthropicClient(): Promise<Anthropic | null> {
-  const apiKey = await getAnthropicApiKey();
+export async function getGoogleClient(): Promise<GoogleGenAI | null> {
+  const apiKey = await getGoogleApiKey();
   if (!apiKey) return null;
-  return new Anthropic({ apiKey });
+  return new GoogleGenAI({ apiKey });
 }
 
-// Default model selections. Override via the Settings page when we expose
-// the field; for now, callers reference these constants directly.
+/**
+ * Model constants. Gemini 2.5 Flash is the free-tier workhorse with a
+ * generous daily quota (thousands of requests/day) and quality that
+ * matches or beats Claude Sonnet for long-form structured writing.
+ *
+ * Flash-Lite is faster and cheaper still — used for the paste-flow
+ * meta-extract where we just need company / role / location.
+ */
 export const MODELS = {
-  // Cheap / fast — used for meta extraction (company/role/location from text).
-  haiku: "claude-haiku-4-5",
-  // Best for long-form structured writing — used by Generate Kit.
-  opus: "claude-opus-4-5",
-  // Mid-tier alternative for kit if the user wants to save on cost.
-  sonnet: "claude-sonnet-4-5",
+  kit: "gemini-2.5-flash",
+  metaExtract: "gemini-2.5-flash-lite",
 } as const;

@@ -1,103 +1,96 @@
 /**
- * Tool schema for the "generate full application kit in one call" prompt.
+ * Kit schema + types + runtime validator.
  *
- * We use Claude's forced tool-use pattern instead of asking for free-form
- * JSON in markdown. The model is required to call `emit_application_kit`
- * exactly once with strictly-shaped input.
- *
- * Also exports TypeScript types that match the tool schema 1:1 so the
- * server-side handler can refine `block.input` to a concrete shape.
+ * With Gemini we get structured output via `responseMimeType:
+ * "application/json"` + `responseJsonSchema`, so no tool wrapper is
+ * needed — the raw response is guaranteed to be valid JSON matching
+ * the schema.
  */
-import type Anthropic from "@anthropic-ai/sdk";
 
-export const KIT_TOOL_NAME = "emit_application_kit";
+// --- JSON Schema (used as Gemini's responseJsonSchema) --------------------
 
-export const KIT_TOOL: Anthropic.Messages.Tool = {
-  name: KIT_TOOL_NAME,
-  description: "Emit the full application kit for this job.",
-  input_schema: {
-    type: "object",
-    required: [
-      "cover_letter",
-      "resume_bullets",
-      "interview_questions",
-      "company_brief",
-    ],
-    properties: {
-      cover_letter: {
+export const KIT_SCHEMA = {
+  type: "object",
+  required: [
+    "cover_letter",
+    "resume_bullets",
+    "interview_questions",
+    "company_brief",
+  ],
+  properties: {
+    cover_letter: {
+      type: "string",
+      description:
+        "300–400 words, markdown, addressed to the hiring team. Specific, " +
+        "quantified, no AI cliches like 'I am writing to express my interest'.",
+    },
+    resume_bullets: {
+      type: "array",
+      minItems: 4,
+      maxItems: 4,
+      items: {
         type: "string",
         description:
-          "300–400 words, markdown, addressed to the hiring team. Specific, " +
-          "quantified, no AI cliches like 'I am writing to express my interest'.",
+          "STAR-style, quantified, ATS-friendly bullet rewritten from the " +
+          "candidate's résumé to align with this listing.",
       },
-      resume_bullets: {
-        type: "array",
-        minItems: 4,
-        maxItems: 4,
-        items: {
-          type: "string",
-          description:
-            "STAR-style, quantified, ATS-friendly bullet rewritten from the " +
-            "candidate's résumé to align with this listing.",
-        },
-      },
-      interview_questions: {
-        type: "array",
-        minItems: 5,
-        maxItems: 5,
-        items: {
-          type: "object",
-          required: ["question", "why_it_matters", "approach"],
-          properties: {
-            question: { type: "string" },
-            why_it_matters: { type: "string" },
-            approach: {
-              type: "string",
-              description: "2–3 sentence hint of how to answer well.",
-            },
-          },
-        },
-      },
-      company_brief: {
+    },
+    interview_questions: {
+      type: "array",
+      minItems: 5,
+      maxItems: 5,
+      items: {
         type: "object",
-        required: [
-          "what_they_do",
-          "recent_signals",
-          "tech_stack_guesses",
-          "team_fit_angle",
-          "questions_to_ask",
-        ],
+        required: ["question", "why_it_matters", "approach"],
         properties: {
-          what_they_do: { type: "string" },
-          recent_signals: {
-            type: "array",
-            items: { type: "string" },
-            description:
-              "Funding, launches, hiring trends, recent news. Empty if unknown.",
-          },
-          tech_stack_guesses: {
-            type: "array",
-            items: { type: "string" },
-            description:
-              "Best-effort guesses based on the listing language. Flag as " +
-              "guesses, not certainties, in the rendered UI.",
-          },
-          team_fit_angle: {
+          question: { type: "string" },
+          why_it_matters: { type: "string" },
+          approach: {
             type: "string",
-            description:
-              "Why the candidate's background fits this team's specific work.",
-          },
-          questions_to_ask: {
-            type: "array",
-            minItems: 3,
-            maxItems: 5,
-            items: { type: "string" },
+            description: "2–3 sentence hint of how to answer well.",
           },
         },
       },
     },
+    company_brief: {
+      type: "object",
+      required: [
+        "what_they_do",
+        "recent_signals",
+        "tech_stack_guesses",
+        "team_fit_angle",
+        "questions_to_ask",
+      ],
+      properties: {
+        what_they_do: { type: "string" },
+        recent_signals: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Funding, launches, hiring trends, recent news. Empty if unknown.",
+        },
+        tech_stack_guesses: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Best-effort guesses based on the listing language. Flag as " +
+            "guesses, not certainties, in the rendered UI.",
+        },
+        team_fit_angle: {
+          type: "string",
+          description:
+            "Why the candidate's background fits this team's specific work.",
+        },
+        questions_to_ask: {
+          type: "array",
+          minItems: 3,
+          maxItems: 5,
+          items: { type: "string" },
+        },
+      },
+    },
   },
-};
+} as const;
 
 // --- Output types ----------------------------------------------------------
 
@@ -132,8 +125,8 @@ export const KIT_SECTION_KINDS = [
 export type KitSectionKind = (typeof KIT_SECTION_KINDS)[number];
 
 // --- Validation helpers ----------------------------------------------------
-// The model is bound to the schema by Anthropic, but we still defend the
-// boundary — a stray null or wrong-type field should fail loud, not silently
+// Structured-output constraints Gemini enforces server-side; we still
+// defend the boundary so a stray null / wrong-typed field can't silently
 // persist a broken kit.
 
 function isString(v: unknown): v is string {
@@ -146,7 +139,7 @@ function isStringArray(v: unknown): v is string[] {
 
 export function validateKitContent(input: unknown): KitContent {
   if (!input || typeof input !== "object") {
-    throw new Error("Kit tool returned non-object input.");
+    throw new Error("Model returned non-object output.");
   }
   const o = input as Record<string, unknown>;
 

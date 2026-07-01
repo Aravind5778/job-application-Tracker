@@ -5,7 +5,8 @@ application kits (cover letter, four résumé bullets, five likely interview
 questions, one-page company brief) with one click.
 
 Stack: **Next.js 16 · TypeScript · Tailwind v4 · Prisma 7 + SQLite ·
-dnd-kit · Radix UI · Anthropic Claude (Opus / Haiku) · @react-pdf/renderer**.
+dnd-kit · Radix UI · Google Gemini (2.5 Flash / Flash-Lite) via
+@google/genai · @react-pdf/renderer**.
 
 Designed against the Linear dark-canvas visual system (see
 `design.md`). Light mode is supported as a courtesy; dark is the default.
@@ -35,15 +36,18 @@ npm run db:reset && npm run db:seed
 
 ## Configuration
 
-Anthropic API key (required for **Generate Kit** and for AI-assisted
-listing parsing on the paste flow):
+Google Gemini API key (required for **Generate Kit** and for AI-assisted
+listing parsing on the paste flow). Gemini's free tier is generous
+(thousands of requests/day on `gemini-2.5-flash`) and requires no credit
+card — get a key at
+[aistudio.google.com/apikey](https://aistudio.google.com/apikey).
 
-- **Easiest**: open the app, go to **Settings → Anthropic API key**, paste
-  your key. It's stored in the local SQLite DB; nothing is ever logged or
-  echoed back.
+- **Easiest**: open the app, go to **Settings → Google Gemini API key**,
+  paste your key. Stored in the local SQLite DB; never logged or echoed
+  back.
 - **Env var (overrides DB value)**: add to `.env`:
   ```
-  ANTHROPIC_API_KEY=sk-ant-…
+  GEMINI_API_KEY=AIza…
   ```
 
 Database location: `./data/app.db` (gitignored). The folder is auto-created.
@@ -101,12 +105,13 @@ src/
 - **URL drawer.** Job detail opens via `?job=<id>` rather than an
   intercepting route — back-button friendly, deep-linkable, and avoids
   parallel-slot complexity.
-- **Prompt caching.** The system block (persona + your profile) is
-  marked `cache_control: ephemeral`. Generating multiple kits in the same
-  five-minute window pays the cache only once.
-- **Forced tool use.** The kit generator declares one tool
-  (`emit_application_kit`) with strict input shape; the model is forced
-  to call it. We never parse free-form JSON out of markdown.
+- **Structured output.** Kit generation uses Gemini's
+  `responseMimeType: "application/json"` + `responseJsonSchema` — the
+  model is required to return valid JSON matching the shape. We never
+  parse free-form JSON out of markdown.
+- **Free tier by default.** Gemini 2.5 Flash powers kit generation;
+  Flash-Lite powers the smaller paste-flow meta-extract. Both sit inside
+  Google's free daily quota for typical personal-search volume.
 - **Streaming.** Generate Kit reads the tool input as it streams in, parses
   the partial JSON with `partial-json`, and renders each section
   progressively. The first sentence of the cover letter appears in ~1s.
