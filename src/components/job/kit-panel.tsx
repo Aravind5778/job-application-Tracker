@@ -38,6 +38,7 @@ export function KitPanel({
   location,
   initialKit,
   profileReady,
+  onDelete,
 }: {
   jobId: string;
   company: string;
@@ -45,6 +46,12 @@ export function KitPanel({
   location: string | null;
   initialKit: SavedKitDTO | null;
   profileReady: boolean;
+  /**
+   * Invoked when the user clicks Delete in the kit-panel top row.
+   * Owned by the parent drawer so it can confirm, DELETE the job, close
+   * the drawer, and refresh the board.
+   */
+  onDelete?: () => void;
 }) {
   // Parent is expected to pass key={jobId} when remounting between jobs, so
   // initialKit is captured once per mount and local mutations (generate /
@@ -126,15 +133,27 @@ export function KitPanel({
           No kit yet. Generate one tailored to this listing.
         </p>
         {error && <p className="text-body-sm text-ink">{error}</p>}
-        <Button
-          onClick={generate}
-          disabled={disabled}
-          title={
-            !profileReady ? "Fill in your profile first (Profile page)" : undefined
-          }
-        >
-          Generate kit
-        </Button>
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            onClick={generate}
+            disabled={disabled}
+            title={
+              !profileReady ? "Fill in your profile first (Profile page)" : undefined
+            }
+          >
+            Generate kit
+          </Button>
+          {onDelete && (
+            <Button
+              variant="tertiary"
+              onClick={onDelete}
+              className="text-ink-subtle hover:text-ink"
+              title="Delete this job"
+            >
+              Delete
+            </Button>
+          )}
+        </div>
         {!profileReady && (
           <p className="text-caption text-ink-tertiary">
             Your profile is empty — the AI needs your résumé as context.
@@ -182,6 +201,17 @@ export function KitPanel({
           >
             {streaming ? "Streaming…" : "Regenerate"}
           </Button>
+          {onDelete && (
+            <Button
+              variant="tertiary"
+              onClick={onDelete}
+              disabled={streaming}
+              className="text-ink-subtle hover:text-ink"
+              title="Delete this job"
+            >
+              Delete
+            </Button>
+          )}
         </div>
       </div>
 

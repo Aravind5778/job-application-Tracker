@@ -9,7 +9,6 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { KitPanel } from "./kit-panel";
 import type { ColumnDTO } from "@/lib/columns";
 import type { JobDetailDTO } from "@/lib/jobs";
@@ -291,26 +290,18 @@ export function JobDetailDrawer({
                   location={job.location}
                   initialKit={kit}
                   profileReady={profileReady}
+                  onDelete={remove}
                 />
               </section>
             </>
           )}
         </div>
 
-        {job && (
-          // Back arrow in the header is the primary exit; the footer keeps
-          // just the destructive action.
-          <footer className="flex items-center justify-end gap-2 px-6 py-3 border-t border-hairline bg-canvas">
-            <Button
-              variant="tertiary"
-              onClick={remove}
-              disabled={pending}
-              className="text-ink-subtle hover:text-ink"
-            >
-              Delete job
-            </Button>
-          </footer>
-        )}
+        {/*
+          No footer — the Back arrow in the header handles exit, and the
+          Delete action lives in the KitPanel's control row so it sits
+          with the other kit-level buttons.
+        */}
       </DialogContent>
     </Dialog>
   );
