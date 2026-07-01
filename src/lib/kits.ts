@@ -118,7 +118,19 @@ function encodeSection(kind: KitSectionKind, value: unknown): string {
 // Model config shared by all kit calls
 
 const MAX_LISTING_CHARS = 12_000;
-const MAX_OUTPUT_TOKENS = 4000;
+// Gemini 2.5 Flash caps out around 8192 output tokens per response.
+// A full kit (400-word cover letter + 4 bullets + 5 questions with 3
+// sub-fields each + company brief with 5 sub-fields) comfortably fits
+// in ~5–6k tokens; we set the ceiling generously and rely on
+// responseJsonSchema to keep the model on task.
+const MAX_OUTPUT_TOKENS = 8192;
+
+// Gemini 2.5 models run "thinking" tokens by default, and those thoughts
+// are billed to the output-token budget — so a request with a 4k output
+// cap can burn 3k on thinking and truncate the JSON mid-string. Setting
+// thinkingBudget: 0 turns that off entirely for structured-output calls,
+// where the model doesn't need to "reason out loud" before emitting JSON.
+const THINKING_OFF = { thinkingBudget: 0 } as const;
 
 function trimListing(text: string): string {
   return text.length > MAX_LISTING_CHARS
@@ -168,6 +180,7 @@ export async function generateKit(jobId: string): Promise<SavedKitDTO> {
         responseMimeType: "application/json",
         responseJsonSchema: KIT_SCHEMA,
         maxOutputTokens: MAX_OUTPUT_TOKENS,
+        thinkingConfig: THINKING_OFF,
       },
     });
 
@@ -255,6 +268,7 @@ export async function* generateKitStream(
         responseMimeType: "application/json",
         responseJsonSchema: KIT_SCHEMA,
         maxOutputTokens: MAX_OUTPUT_TOKENS,
+        thinkingConfig: THINKING_OFF,
       },
     });
 
@@ -278,8 +292,22 @@ export async function* generateKitStream(
       }
     }
 
-    // Final parse — must succeed since responseJsonSchema was enforced.
-    const content = validateKitContent(JSON.parse(jsonBuf));
+    // Final parse — with responseJsonSchema + thinkingBudget:0 this should
+    // always be complete JSON. If it isn't, the model likely hit the
+    // output-token cap; give the user an actionable message instead of a
+    // raw JSON.parse error.
+    let content: KitContent;
+    try {
+      content = validateKitContent(JSON.parse(jsonBuf));
+    } catch (parseErr) {
+      const truncated = jsonBuf.length > 0 && !jsonBuf.trimEnd().endsWith("}");
+      const detail = parseErr instanceof Error ? parseErr.message : String(parseErr);
+      throw new KitInputError(
+        truncated
+          ? "Model ran out of output tokens before finishing the kit. Try again, or shorten the listing text."
+          : `Model returned malformed JSON: ${detail}`,
+      );
+    }
 
     await logKitCall({
       jobId,
@@ -363,7 +391,8 @@ export async function regenerateKitSection(
         systemInstruction: buildKitSystemPrompt(profile),
         responseMimeType: "application/json",
         responseJsonSchema: KIT_SCHEMA,
-        maxOutputTokens: 2000,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+        thinkingConfig: THINKING_OFF,
       },
     });
 

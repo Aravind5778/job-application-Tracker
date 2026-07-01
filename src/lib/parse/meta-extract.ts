@@ -57,7 +57,10 @@ export async function extractMetaFromText(
         systemInstruction: SYSTEM,
         responseMimeType: "application/json",
         responseJsonSchema: META_SCHEMA,
-        maxOutputTokens: 200,
+        maxOutputTokens: 512,
+        // Skip "thinking" tokens; small structured extraction doesn't
+        // need chain-of-thought and it would eat the output budget.
+        thinkingConfig: { thinkingBudget: 0 },
       },
     });
 
