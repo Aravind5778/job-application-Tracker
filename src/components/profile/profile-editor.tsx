@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import type { ProfileDTO } from "@/lib/profile";
 
@@ -20,6 +20,57 @@ export function ProfileEditor({ initial }: { initial: ProfileDTO }) {
   const [email, setEmail] = useState(initial.email);
   const [resumeText, setResumeText] = useState(initial.resumeText);
   const [backgroundNote, setBackgroundNote] = useState(initial.backgroundNote);
+  const [uploading, setUploading] = useState(false);
+  const [uploadHint, setUploadHint] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function onFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    // Reset the input so re-picking the same file still fires onChange.
+    event.target.value = "";
+    if (!file) return;
+    setError(null);
+    setUploadHint(null);
+
+    // Guard against clobbering hand-typed text without a warning.
+    if (
+      resumeText.trim() &&
+      !confirm(
+        "Replace the current résumé text with the extracted content from this file?",
+      )
+    ) {
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/profile/extract-resume", {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? `Extraction failed (${res.status}).`);
+      }
+      const { text, warnings } = (await res.json()) as {
+        text: string;
+        warnings: string[];
+      };
+      setResumeText(text);
+      setUploadHint(
+        `Loaded ${file.name} (${(file.size / 1024).toFixed(0)} KB).` +
+          (warnings.length
+            ? ` Note: ${warnings.slice(0, 2).join("; ")}`
+            : " Review the text below and click Save profile."),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Extraction failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   function save() {
     setError(null);
@@ -81,18 +132,46 @@ export function ProfileEditor({ initial }: { initial: ProfileDTO }) {
         </Row>
       </section>
 
-      <section>
-        <Row label="Résumé" htmlFor="resume" hint="Paste your full résumé. The AI uses this verbatim as context for every kit.">
-          <textarea
-            id="resume"
-            rows={14}
-            className={inputCls + " resize-y min-h-[260px] font-mono text-body-sm"}
-            value={resumeText}
-            onChange={(e) => setResumeText(e.target.value)}
-            disabled={pending}
-            placeholder="Paste your résumé text here."
-          />
-        </Row>
+      <section className="space-y-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-caption text-ink-subtle">Résumé</span>
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className="hidden"
+              onChange={onFilePicked}
+            />
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={pending || uploading}
+              title="Extract text from a PDF or Word file into the field below"
+            >
+              {uploading ? "Extracting…" : "Upload .pdf or .docx"}
+            </Button>
+          </div>
+        </div>
+
+        {uploadHint && (
+          <p className="text-caption text-ink-subtle">{uploadHint}</p>
+        )}
+
+        <textarea
+          id="resume"
+          rows={14}
+          className={inputCls + " resize-y min-h-[260px] font-mono text-body-sm"}
+          value={resumeText}
+          onChange={(e) => setResumeText(e.target.value)}
+          disabled={pending || uploading}
+          placeholder="Paste your résumé text here, or use the Upload button above."
+        />
+
+        <p className="text-caption text-ink-tertiary">
+          The AI uses this verbatim as context for every kit.
+        </p>
       </section>
 
       <section>

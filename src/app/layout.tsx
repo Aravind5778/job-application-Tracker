@@ -52,6 +52,15 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        {/*
+          Inline no-flash theme initializer. Must run synchronously before
+          paint so a stored `light` preference isn't briefly overridden by
+          the `data-theme="dark"` on <html>. React 19 warns about `<script>`
+          inside a component ("never executed on re-render"); the warning
+          is a false positive for us — the SSR pass writes the script into
+          the HTML, and the browser executes it during parse. next/script
+          with strategy=beforeInteractive still triggers the same warning.
+        */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="min-h-full bg-canvas text-ink flex flex-col">

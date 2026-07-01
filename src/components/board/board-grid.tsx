@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -23,6 +23,7 @@ import {
   JobCardPreview,
   SortableJobCard,
 } from "./sortable-job-card";
+import { StaticJobCard } from "./static-job-card";
 import type { ColumnDTO } from "@/lib/columns";
 import type { JobListDTO } from "@/lib/jobs";
 
@@ -52,6 +53,21 @@ export function BoardGrid({
   );
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // dnd-kit's useSortable emits `aria-describedby="DndDescribedBy-N"` where N
+  // is a global counter — the SSR pass and the first client render can pick
+  // different values (React's strict-mode double render, useId ordering
+  // shifting because other client components render conditionally on the
+  // client, etc). Deferring the DnD tree to after the first commit sidesteps
+  // that entirely: SSR + first client render both draw the plain static
+  // grid, then the DnD-wrapped version takes over.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    // One-time mount flag; not a state-mirror pattern, so the lint's
+    // set-state-in-effect concern doesn't apply.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
 
   // Flat id → job lookup, always derived from props (so renamed/moved fields
   // outside of drag operations stay live).
@@ -180,6 +196,26 @@ export function BoardGrid({
   const cols = Math.min(Math.max(columns.length, 1), 6);
   const draggingJob = draggingId ? jobsById[draggingId] : null;
 
+  // Pre-hydration: render the exact same layout using StaticJobCard so
+  // the SSR HTML and first client render are byte-identical.
+  if (!mounted) {
+    return (
+      <div
+        className="grid gap-4"
+        style={{ gridTemplateColumns: `repeat(${cols}, minmax(220px, 1fr))` }}
+      >
+        {columns.map((col) => (
+          <StaticColumn
+            key={col.id}
+            column={col}
+            ids={orderByCol[col.id] ?? []}
+            jobsById={jobsById}
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <>
       {error && (
@@ -265,6 +301,57 @@ function Column({
           )}
         </ColumnDropZone>
       </SortableContext>
+    </section>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// Non-DnD column, used only pre-hydration so the SSR HTML matches the first
+// client render exactly. Once mounted, `Column` (with SortableContext) takes
+// over.
+
+function StaticColumn({
+  column,
+  ids,
+  jobsById,
+}: {
+  column: ColumnDTO;
+  ids: string[];
+  jobsById: Record<string, JobListDTO>;
+}) {
+  return (
+    <section
+      aria-label={column.name}
+      className="flex flex-col gap-3 min-h-[320px]"
+    >
+      <header className="flex items-center justify-between">
+        <h2
+          className={
+            column.isTerminal
+              ? "text-eyebrow uppercase text-[var(--color-success)]"
+              : "text-eyebrow uppercase text-ink-subtle"
+          }
+        >
+          {column.name}
+        </h2>
+        <span className="text-caption text-ink-tertiary">{ids.length}</span>
+      </header>
+
+      {ids.length === 0 ? (
+        <div className="flex-1 rounded-lg border border-dashed border-hairline flex items-center justify-center px-4 py-8 min-h-[160px]">
+          <p className="text-body-sm text-ink-tertiary text-center leading-snug">
+            No jobs here yet.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {ids.map((id) =>
+            jobsById[id] ? (
+              <StaticJobCard key={id} job={jobsById[id]} />
+            ) : null,
+          )}
+        </div>
+      )}
     </section>
   );
 }

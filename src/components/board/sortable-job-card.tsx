@@ -72,7 +72,7 @@ export function JobCardPreview({ job }: { job: JobListDTO }) {
   );
 }
 
-function JobCardContent({ job }: { job: JobListDTO }) {
+export function JobCardContent({ job }: { job: JobListDTO }) {
   return (
     <>
       <div className="text-card-title text-ink truncate">{job.company}</div>
