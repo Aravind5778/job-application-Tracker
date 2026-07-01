@@ -2,19 +2,22 @@ import { TopNav } from "@/components/layout/top-nav";
 import { ColumnsEditor } from "@/components/settings/columns-editor";
 import { ApiKeyEditor } from "@/components/settings/api-key-editor";
 import { AiLogTable } from "@/components/settings/ai-log-table";
+import { SearchSettings } from "@/components/settings/search-settings";
 import { listColumns } from "@/lib/columns";
 import { getGoogleApiKey } from "@/lib/ai/client";
 import { listAiLog, totalSpendCents } from "@/lib/ai-log";
+import { getSearchConfig } from "@/lib/search/config";
 
 // Settings always reflects the live DB state — don't cache between requests.
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const [columns, key, aiLog, total] = await Promise.all([
+  const [columns, key, aiLog, total, searchConfig] = await Promise.all([
     listColumns(),
     getGoogleApiKey(),
     listAiLog(30),
     totalSpendCents(),
+    getSearchConfig(),
   ]);
   const hasKey = !!key;
   const fromEnv = !!process.env.GEMINI_API_KEY;
@@ -46,6 +49,16 @@ export default async function SettingsPage() {
               <h2 className="text-card-title text-ink">Google Gemini API key</h2>
             </header>
             <ApiKeyEditor hasKey={hasKey} fromEnv={fromEnv} />
+          </section>
+
+          <section className="mt-12">
+            <header className="mb-4">
+              <h2 className="text-card-title text-ink">Job search</h2>
+              <p className="text-caption text-ink-tertiary mt-1">
+                Configuration for the &ldquo;Find jobs&rdquo; button.
+              </p>
+            </header>
+            <SearchSettings initial={searchConfig} />
           </section>
 
           <section className="mt-12">
