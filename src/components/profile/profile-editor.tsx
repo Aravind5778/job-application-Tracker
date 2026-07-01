@@ -14,6 +14,7 @@ export function ProfileEditor({ initial }: { initial: ProfileDTO }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [savedAt, setSavedAt] = useState<string | null>(initial.updatedAt);
+  const [justSaved, setJustSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [fullName, setFullName] = useState(initial.fullName);
@@ -74,6 +75,7 @@ export function ProfileEditor({ initial }: { initial: ProfileDTO }) {
 
   function save() {
     setError(null);
+    setJustSaved(false);
     startTransition(async () => {
       try {
         const res = await fetch("/api/profile", {
@@ -92,6 +94,10 @@ export function ProfileEditor({ initial }: { initial: ProfileDTO }) {
         }
         const { profile } = (await res.json()) as { profile: ProfileDTO };
         setSavedAt(profile.updatedAt);
+        setJustSaved(true);
+        // Auto-clear the confirmation after a couple of seconds so it
+        // doesn't linger between edits.
+        setTimeout(() => setJustSaved(false), 2500);
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Save failed.");
@@ -201,9 +207,19 @@ export function ProfileEditor({ initial }: { initial: ProfileDTO }) {
         <p className="text-caption text-ink-tertiary" suppressHydrationWarning>
           {savedAt ? `Last saved ${new Date(savedAt).toLocaleString()}` : "Not saved yet"}
         </p>
-        <Button onClick={save} disabled={pending}>
-          {pending ? "Saving…" : "Save profile"}
-        </Button>
+        <div className="flex items-center gap-3">
+          {justSaved && (
+            <span
+              role="status"
+              className="text-body-sm text-[var(--color-success)]"
+            >
+              Saved ✓
+            </span>
+          )}
+          <Button onClick={save} disabled={pending}>
+            {pending ? "Saving…" : "Save profile"}
+          </Button>
+        </div>
       </footer>
     </div>
   );
