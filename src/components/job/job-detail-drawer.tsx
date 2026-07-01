@@ -141,7 +141,7 @@ export function JobDetailDrawer({
 
   function remove() {
     if (!job) return;
-    if (!confirm(`Delete ${job.company} – ${job.role}?`)) return;
+    // No confirm — user explicitly asked for one-click delete.
     setActionError(null);
     startTransition(async () => {
       try {

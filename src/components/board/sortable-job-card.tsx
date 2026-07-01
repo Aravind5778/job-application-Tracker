@@ -132,7 +132,7 @@ export function CardContextMenuWrapper({
 
   function onDelete() {
     if (pending) return;
-    if (!confirm(`Delete ${job.company} — ${job.role}?`)) return;
+    // No confirm — user explicitly asked for one-click delete.
     startTransition(async () => {
       try {
         const res = await fetch(`/api/jobs/${encodeURIComponent(job.id)}`, {

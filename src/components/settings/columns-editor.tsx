@@ -81,14 +81,9 @@ export function ColumnsEditor({ initialColumns }: { initialColumns: ColumnDTO[] 
     });
   }
 
-  function remove(id: string, name: string) {
-    if (
-      !confirm(
-        `Delete "${name}"? Any jobs in this column will be removed too.`,
-      )
-    ) {
-      return;
-    }
+  function remove(id: string) {
+    // No confirm — user explicitly asked for one-click delete. Deleting a
+    // column still cascades to its jobs via the Prisma relation.
     run(async () => {
       await call(`/api/columns/${id}`, { method: "DELETE" });
     });
@@ -215,7 +210,7 @@ export function ColumnsEditor({ initialColumns }: { initialColumns: ColumnDTO[] 
                   <IconButton
                     label="Delete column"
                     disabled={pending}
-                    onClick={() => remove(col.id, col.name)}
+                    onClick={() => remove(col.id)}
                   >
                     ×
                   </IconButton>
