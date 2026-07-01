@@ -41,13 +41,24 @@ export const KIT_SCHEMA = {
       maxItems: 10,
       items: {
         type: "object",
-        required: ["question", "why_it_matters", "approach"],
+        required: ["question", "why_it_matters", "approach", "sample_answer"],
         properties: {
           question: { type: "string" },
           why_it_matters: { type: "string" },
           approach: {
             type: "string",
             description: "2–3 sentence hint of how to answer well.",
+          },
+          sample_answer: {
+            type: "string",
+            description:
+              "A full ~180–260 word first-person practice answer the " +
+              "candidate can rehearse. STAR-style (Situation, Task, " +
+              "Action, Result) when the question is behavioral. Draw on " +
+              "the candidate's actual résumé — quantified numbers, real " +
+              "company names, real projects — never fabricated. If the " +
+              "listing implies a tool/skill the résumé doesn't cover, " +
+              "acknowledge the adjacency honestly.",
           },
         },
       },
@@ -98,6 +109,13 @@ export type InterviewQuestion = {
   question: string;
   why_it_matters: string;
   approach: string;
+  /**
+   * Full ~200-word first-person answer the user can rehearse with.
+   * Optional in the type so we can gracefully render legacy kits that
+   * were generated before this field was added; the schema still marks
+   * it required for new outputs.
+   */
+  sample_answer?: string;
 };
 
 export type CompanyBrief = {
@@ -152,16 +170,21 @@ export function validateKitContent(input: unknown): KitContent {
   if (
     !Array.isArray(o.interview_questions) ||
     o.interview_questions.length !== 10 ||
-    !o.interview_questions.every(
-      (q) =>
-        q &&
-        typeof q === "object" &&
-        isString((q as InterviewQuestion).question) &&
-        isString((q as InterviewQuestion).why_it_matters) &&
-        isString((q as InterviewQuestion).approach),
-    )
+    !o.interview_questions.every((q) => {
+      if (!q || typeof q !== "object") return false;
+      const iq = q as InterviewQuestion;
+      return (
+        isString(iq.question) &&
+        isString(iq.why_it_matters) &&
+        isString(iq.approach) &&
+        isString(iq.sample_answer) &&
+        iq.sample_answer.trim().length > 0
+      );
+    })
   ) {
-    throw new Error("interview_questions must be 10 well-formed objects.");
+    throw new Error(
+      "interview_questions must be 10 objects with question/why_it_matters/approach/sample_answer.",
+    );
   }
   const cb = o.company_brief as CompanyBrief | undefined;
   if (

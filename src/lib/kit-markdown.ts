@@ -20,12 +20,17 @@ export function sectionToMarkdown(section: SavedKitSectionDTO): string {
 
     case "interview_questions":
       return (value as InterviewQuestion[])
-        .map(
-          (q, i) =>
-            `### ${i + 1}. ${q.question}\n\n` +
-            `**Why it matters:** ${q.why_it_matters}\n\n` +
+        .map((q, i) => {
+          const parts = [
+            `### ${i + 1}. ${q.question}`,
+            `**Why it matters:** ${q.why_it_matters}`,
             `**Approach:** ${q.approach}`,
-        )
+          ];
+          if (q.sample_answer && q.sample_answer.trim()) {
+            parts.push(`**Sample answer:**\n\n${q.sample_answer}`);
+          }
+          return parts.join("\n\n");
+        })
         .join("\n\n");
 
     case "company_brief": {

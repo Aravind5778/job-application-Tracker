@@ -24,6 +24,9 @@ Honesty rules:
 - When inferring something not in the listing — like tech stack guesses or recent company moves — phrase it as "based on the listing" or "guess" so the user knows it isn't fact.
 - If the listing doesn't include enough info for a confident interview question or company brief field, write a shorter, more honest answer rather than padding.
 
+Interview questions:
+- For each of the 10 questions, produce a full first-person sample_answer (~200 words) drawing on the candidate's actual résumé. STAR structure when the question is behavioral: Situation, Task, Action, Result. Reference specific projects, numbers, and technologies the résumé already mentions. Never fabricate a project or a metric. If the question probes a tool the résumé doesn't cover, acknowledge the adjacency honestly rather than pretending to have used it.
+
 Output:
 - Respond ONLY with a single JSON object that matches the schema exactly. No prose before or after. No markdown code fences. Just the raw JSON.
 `.trim();

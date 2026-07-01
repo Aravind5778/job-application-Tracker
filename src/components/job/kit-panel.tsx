@@ -797,26 +797,139 @@ function BulletsView({ bullets }: { bullets: string[] }) {
 }
 
 function QuestionsView({ questions }: { questions: InterviewQuestion[] }) {
+  // 1-based selected question index; null = no question expanded (default).
+  const [selected, setSelected] = useState<number | null>(null);
+  const anyHasAnswer = questions.some(
+    (q) => q.sample_answer && q.sample_answer.trim(),
+  );
+
+  const active = selected !== null ? questions[selected - 1] : null;
+
   return (
-    <ol className="list-decimal pl-5 space-y-4 text-body-sm text-ink">
-      {questions.map((q, i) => (
-        <li key={i} className="space-y-1">
-          <p className="text-ink">{q.question}</p>
-          <p className="text-ink-muted">
-            <span className="text-caption text-ink-subtle uppercase tracking-wide mr-2">
-              Why
-            </span>
-            {q.why_it_matters}
+    <div className="space-y-5">
+      {/* Summary: all 10 questions with why + approach, as before. */}
+      <ol className="list-decimal pl-5 space-y-4 text-body-sm text-ink">
+        {questions.map((q, i) => (
+          <li key={i} className="space-y-1">
+            <p className="text-ink">{q.question}</p>
+            <p className="text-ink-muted">
+              <span className="text-caption text-ink-subtle uppercase tracking-wide mr-2">
+                Why
+              </span>
+              {q.why_it_matters}
+            </p>
+            <p className="text-ink-muted">
+              <span className="text-caption text-ink-subtle uppercase tracking-wide mr-2">
+                Approach
+              </span>
+              {q.approach}
+            </p>
+          </li>
+        ))}
+      </ol>
+
+      {/* Pagination bar → click a number to expand its sample answer below. */}
+      <div className="border-t border-hairline pt-4 space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-caption text-ink-subtle uppercase tracking-wide">
+            Practice with sample answers
           </p>
-          <p className="text-ink-muted">
-            <span className="text-caption text-ink-subtle uppercase tracking-wide mr-2">
-              Approach
-            </span>
-            {q.approach}
+          {selected !== null && (
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              className="text-caption text-ink-subtle hover:text-ink transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          {questions.map((_, i) => {
+            const n = i + 1;
+            const isActive = selected === n;
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setSelected(isActive ? null : n)}
+                className={cn(
+                  "inline-flex items-center justify-center h-8 min-w-8 px-2 rounded-md text-button transition-colors cursor-pointer",
+                  isActive
+                    ? "bg-primary text-[var(--color-on-primary)]"
+                    : "bg-surface-1 text-ink-subtle hover:text-ink hover:bg-surface-2 border border-hairline",
+                )}
+                aria-pressed={isActive}
+              >
+                {n}
+              </button>
+            );
+          })}
+        </div>
+
+        {!anyHasAnswer && (
+          <p className="text-caption text-ink-tertiary">
+            This kit was generated before sample answers were added.
+            Regenerate the Questions section to include a full practice
+            answer per question.
           </p>
-        </li>
-      ))}
-    </ol>
+        )}
+
+        {active && (
+          <QuestionDetail index={selected as number} q={active} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function QuestionDetail({
+  index,
+  q,
+}: {
+  index: number;
+  q: InterviewQuestion;
+}) {
+  const hasAnswer = !!q.sample_answer && q.sample_answer.trim().length > 0;
+  return (
+    <div className="rounded-lg border border-hairline bg-surface-1 p-4 space-y-3 text-body-sm text-ink">
+      <div className="flex items-baseline gap-2">
+        <span className="text-caption text-ink-subtle uppercase tracking-wide">
+          Question {index}
+        </span>
+      </div>
+      <p className="text-body-lg text-ink leading-snug">{q.question}</p>
+
+      <div>
+        <p className="text-caption text-ink-subtle uppercase tracking-wide mb-1">
+          Why it matters
+        </p>
+        <p className="text-ink-muted">{q.why_it_matters}</p>
+      </div>
+
+      <div>
+        <p className="text-caption text-ink-subtle uppercase tracking-wide mb-1">
+          Approach
+        </p>
+        <p className="text-ink-muted">{q.approach}</p>
+      </div>
+
+      <div>
+        <p className="text-caption text-ink-subtle uppercase tracking-wide mb-1">
+          Sample answer
+        </p>
+        {hasAnswer ? (
+          <p className="text-ink whitespace-pre-wrap leading-relaxed">
+            {q.sample_answer}
+          </p>
+        ) : (
+          <p className="text-ink-tertiary italic">
+            Not available on this kit — regenerate the Questions section.
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 
